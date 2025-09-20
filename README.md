@@ -26,6 +26,7 @@ A modern, client-side video processing platform built with SvelteKit that compre
 
 - Node.js 18+ 
 - npm or yarn
+- Supabase account (for database and authentication)
 - Google Cloud Platform account (for Google Drive API)
 - Bitly account (for URL shortening)
 
@@ -42,27 +43,44 @@ A modern, client-side video processing platform built with SvelteKit that compre
    npm install
    ```
 
-3. **Set up environment variables**
+3. **Set up Supabase**
+   - Create a new project at [supabase.com](https://supabase.com)
+   - Go to Settings → API to get your project URL and anon key
+   - Run the SQL schema in the SQL editor:
+     ```bash
+   cat supabase-schema.sql
+   ```
+   - Copy and paste the contents into your Supabase SQL editor
+
+4. **Set up environment variables**
    ```bash
    cp env.example .env.local
    ```
    
    Edit `.env.local` with your API keys:
    ```env
+   VITE_SUPABASE_URL=your_supabase_project_url_here
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
    VITE_GOOGLE_API_KEY=your_google_api_key_here
    VITE_GOOGLE_CLIENT_ID=your_google_client_id_here
    VITE_BITLY_ACCESS_TOKEN=your_bitly_access_token_here
    ```
 
-4. **Start the development server**
+5. **Start the development server**
    ```bash
    npm run dev
    ```
 
-5. **Open your browser**
+6. **Open your browser**
    Navigate to `http://localhost:5173`
 
 ## API Setup
+
+### Supabase Setup
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Enable Google OAuth in Authentication → Providers
+3. Add your domain to the allowed redirect URLs
+4. Run the provided SQL schema to create tables and policies
 
 ### Google Drive API
 

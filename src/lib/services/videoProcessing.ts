@@ -2,6 +2,8 @@ import { videoProcessor } from '$lib/utils/ffmpeg';
 import { googleDriveService } from '$lib/utils/googleDrive';
 import { bitlyService } from '$lib/utils/bitly';
 import { addToQueue, updateTaskProgress, completeTask, type ProcessingTask } from '$lib/stores/video';
+import { databaseService } from '$lib/services/database';
+import { getCurrentUser } from '$lib/supabase';
 import { generateId } from '$lib/utils/format';
 import { browser } from '$app/environment';
 
@@ -34,9 +36,34 @@ export class VideoProcessingService {
     this.isProcessing = true;
     const taskId = addToQueue(file);
     
+    // Get current user for database tracking
+    const user = await getCurrentUser();
+    let dbJobId: string | null = null;
+    
     try {
+      // Create database job record if user is authenticated
+      if (user) {
+        dbJobId = await databaseService.createProcessingJob({
+          user_id: user.id,
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type,
+          status: 'pending',
+          progress: 0,
+          original_size: file.size
+        });
+      }
+      
       // Update status to processing
       updateTaskProgress(taskId, 0, 'processing');
+      
+      // Update database status
+      if (dbJobId) {
+        await databaseService.updateProcessingJob(dbJobId, {
+          status: 'processing',
+          progress: 0
+        });
+      }
       
       // Step 1: Compress video (0-70% progress)
       updateTaskProgress(taskId, 10, 'processing');
@@ -78,6 +105,18 @@ export class VideoProcessingService {
       // Complete the task
       const processingTime = Date.now(); // Would be calculated from start time
       
+      // Update database with completion
+      if (dbJobId) {
+        await databaseService.updateProcessingJob(dbJobId, {
+          status: 'completed',
+          progress: 100,
+          compressed_size: compressedFile.size,
+          processing_time: processingTime,
+          download_url: URL.createObjectURL(compressedFile),
+          share_url: shareUrl
+        });
+      }
+      
       completeTask(taskId, {
         compressedSize: compressedFile.size,
         processingTime,
@@ -100,6 +139,15 @@ export class VideoProcessingService {
     } catch (error) {
       console.error('Video processing failed:', error);
       updateTaskProgress(taskId, 0, 'error');
+      
+      // Update database with error
+      if (dbJobId) {
+        await databaseService.updateProcessingJob(dbJobId, {
+          status: 'failed',
+          error_message: error instanceof Error ? error.message : 'Unknown error occurred'
+        });
+      }
+      
       completeTask(taskId, {
         error: error instanceof Error ? error.message : 'Unknown error occurred',
       });
