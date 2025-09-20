@@ -1,0 +1,47 @@
+{
+  "name": "convertr",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --host",
+    "build": "vite build",
+    "preview": "vite preview --host",
+    "prepare": "svelte-kit sync || echo ''",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "lint": "prettier --check . && eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-auto": "^3.3.1",
+    "@sveltejs/kit": "^2.42.2",
+    "@sveltejs/vite-plugin-svelte": "^3.1.2",
+    "svelte": "^4.2.20",
+    "svelte-check": "^3.8.6",
+    "typescript": "^5.9.2",
+    "vite": "^5.4.20"
+  },
+  "description": "A modern video processing platform that compresses videos, uploads to Google Drive, and generates shortened sharing links.",
+  "main": "svelte.config.js",
+  "keywords": [
+    "video",
+    "compression",
+    "ffmpeg",
+    "google-drive",
+    "bitly",
+    "sveltekit",
+    "typescript"
+  ],
+  "author": "Convertr Team",
+  "license": "MIT",
+  "dependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
+    "@tailwindcss/forms": "^0.5.10",
+    "@tailwindcss/typography": "^0.5.18",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17"
+  }
+}
