@@ -1,8 +1,7 @@
 -- Convertr Database Schema
 -- Run this in your Supabase SQL editor
 
--- Enable Row Level Security
-ALTER TABLE auth.users ENABLE ROW LEVEL SECURITY;
+-- Note: auth.users table already has RLS enabled by default in Supabase
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS public.users (
@@ -39,7 +38,7 @@ CREATE TABLE IF NOT EXISTS public.user_preferences (
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL UNIQUE,
   compression_quality DECIMAL(3,2) DEFAULT 0.8 CHECK (compression_quality >= 0.1 AND compression_quality <= 1.0),
   enable_google_drive BOOLEAN DEFAULT true,
-  enable_bitly BOOLEAN DEFAULT true,
+  enable_tinyurl BOOLEAN DEFAULT true,
   default_folder_id TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

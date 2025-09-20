@@ -62,7 +62,7 @@
         await videoProcessingService.processVideo(file, {
           quality: 0.8,
           enableGoogleDrive: false, // Disable for now due to API setup
-          enableBitly: false, // Disable for now due to API setup
+          enableTinyUrl: false, // Disable for now due to API setup
         });
         
         // Update video status
@@ -78,7 +78,7 @@
           await demoVideoProcessingService.processVideo(file, {
             quality: 0.8,
             enableGoogleDrive: false,
-            enableBitly: false,
+            enableTinyUrl: false,
           });
           
           // Update video status
@@ -100,7 +100,7 @@
           } : null);
           
           // Show a fallback message
-          alert(`Video processing failed: ${errorMessage}\n\nThis is a demo application. In a production environment, you would need to set up API keys for Google Drive and Bitly integration.`);
+          alert(`Video processing failed: ${errorMessage}\n\nThis is a demo application. In a production environment, you would need to set up API keys for Google Drive and TinyURL integration.`);
         }
       }
       

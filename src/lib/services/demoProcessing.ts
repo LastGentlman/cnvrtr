@@ -9,11 +9,11 @@ export class DemoVideoProcessingService {
     options: {
       quality: number;
       enableGoogleDrive: boolean;
-      enableBitly: boolean;
+      enableTinyUrl: boolean;
     } = {
       quality: 0.8,
       enableGoogleDrive: false,
-      enableBitly: false,
+      enableTinyUrl: false,
     }
   ): Promise<ProcessingTask> {
     if (!browser) {
@@ -48,7 +48,7 @@ export class DemoVideoProcessingService {
       }
       
       // Step 3: Simulate link generation (90-100% progress)
-      if (options.enableBitly) {
+      if (options.enableTinyUrl) {
         for (let i = 90; i <= 100; i += 2) {
           await this.delay(100);
           updateTaskProgress(taskId, i, 'processing');
@@ -69,7 +69,7 @@ export class DemoVideoProcessingService {
       completeTask(taskId, {
         compressedSize: Math.round(file.size * compressionRatio),
         downloadUrl: URL.createObjectURL(mockCompressedFile),
-        shareUrl: options.enableBitly ? 'https://bit.ly/demo123' : undefined,
+        shareUrl: options.enableTinyUrl ? 'https://tinyurl.com/demo123' : undefined,
       });
       
       return {
@@ -81,7 +81,7 @@ export class DemoVideoProcessingService {
         compressedSize: Math.round(file.size * compressionRatio),
         processingTime,
         downloadUrl: URL.createObjectURL(mockCompressedFile),
-        shareUrl: options.enableBitly ? 'https://bit.ly/demo123' : undefined,
+        shareUrl: options.enableTinyUrl ? 'https://tinyurl.com/demo123' : undefined,
       };
       
     } catch (error) {

@@ -40,7 +40,7 @@ export const appConfig = writable({
   supportedFormats: ['mp4', 'avi', 'mov', 'mkv', 'webm'],
   compressionQuality: 0.8,
   enableGoogleDrive: true,
-  enableBitly: true
+  enableTinyUrl: true
 });
 
 // Helper functions

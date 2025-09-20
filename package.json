@@ -29,7 +29,7 @@
     "compression",
     "ffmpeg",
     "google-drive",
-    "bitly",
+    "tinyurl",
     "sveltekit",
     "typescript"
   ],

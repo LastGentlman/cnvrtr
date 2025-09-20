@@ -1,6 +1,6 @@
 import { videoProcessor } from '$lib/utils/ffmpeg';
 import { googleDriveService } from '$lib/utils/googleDrive';
-import { bitlyService } from '$lib/utils/bitly';
+import { tinyUrlService } from '$lib/utils/tinyurl';
 import { addToQueue, updateTaskProgress, completeTask, type ProcessingTask } from '$lib/stores/video';
 import { databaseService } from '$lib/services/database';
 import { getCurrentUser } from '$lib/supabase';
@@ -10,7 +10,7 @@ import { browser } from '$app/environment';
 export interface ProcessingOptions {
   quality: number; // 0.1 to 1.0
   enableGoogleDrive: boolean;
-  enableBitly: boolean;
+  enableTinyUrl: boolean;
   folderId?: string;
 }
 
@@ -22,7 +22,7 @@ export class VideoProcessingService {
     options: ProcessingOptions = {
       quality: 0.8,
       enableGoogleDrive: true,
-      enableBitly: true,
+      enableTinyUrl: true,
     }
   ): Promise<ProcessingTask> {
     if (!browser) {
@@ -86,14 +86,14 @@ export class VideoProcessingService {
       
       // Step 3: Generate shortened link (90-100% progress)
       let shareUrl = null;
-      if (options.enableBitly && driveFile) {
+      if (options.enableTinyUrl && driveFile) {
         updateTaskProgress(taskId, 90, 'processing');
         try {
-          const bitlyLink = await this.generateShortLink(driveFile.webViewLink);
-          shareUrl = bitlyLink.link;
+          const tinyUrlResponse = await this.generateShortLink(driveFile.webViewLink);
+          shareUrl = tinyUrlResponse.shortUrl;
           updateTaskProgress(taskId, 100, 'processing');
         } catch (error) {
-          console.warn('Bitly link generation failed:', error);
+          console.warn('TinyURL link generation failed:', error);
           // Use Google Drive link as fallback
           shareUrl = driveFile?.webViewLink || null;
         }
@@ -200,9 +200,9 @@ export class VideoProcessingService {
   
   private async generateShortLink(longUrl: string): Promise<any> {
     try {
-      return await bitlyService.shortenUrl(longUrl, 'Compressed Video');
+      return await tinyUrlService.shortenUrl(longUrl, 'compressed-video');
     } catch (error) {
-      console.error('Bitly link generation failed:', error);
+      console.error('TinyURL link generation failed:', error);
       throw new Error('Failed to generate shortened link. Please try again.');
     }
   }

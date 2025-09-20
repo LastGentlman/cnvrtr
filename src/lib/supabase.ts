@@ -101,7 +101,7 @@ export interface Database {
           user_id: string;
           compression_quality: number;
           enable_google_drive: boolean;
-          enable_bitly: boolean;
+          enable_tinyurl: boolean;
           default_folder_id: string | null;
           created_at: string;
           updated_at: string;
@@ -111,7 +111,7 @@ export interface Database {
           user_id: string;
           compression_quality?: number;
           enable_google_drive?: boolean;
-          enable_bitly?: boolean;
+          enable_tinyurl?: boolean;
           default_folder_id?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -121,7 +121,7 @@ export interface Database {
           user_id?: string;
           compression_quality?: number;
           enable_google_drive?: boolean;
-          enable_bitly?: boolean;
+          enable_tinyurl?: boolean;
           default_folder_id?: string | null;
           created_at?: string;
           updated_at?: string;

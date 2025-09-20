@@ -6,7 +6,7 @@ A modern, client-side video processing platform built with SvelteKit that compre
 
 - 🎥 **Client-side Video Processing** - Uses FFmpeg.js for browser-based video compression
 - 📁 **Google Drive Integration** - Automatic upload to Google Drive with resumable uploads
-- 🔗 **URL Shortening** - Bitly integration for shortened sharing links
+- 🔗 **URL Shortening** - TinyURL integration for shortened sharing links
 - ⚡ **Real-time Progress** - Live progress tracking during processing
 - 📱 **Responsive Design** - Modern UI built with Tailwind CSS
 - 🔒 **Secure** - Client-side processing with secure API integrations
@@ -17,7 +17,7 @@ A modern, client-side video processing platform built with SvelteKit that compre
 - **Styling**: Tailwind CSS
 - **Video Processing**: FFmpeg.js (WASM)
 - **Storage**: Google Drive API v3
-- **URL Shortening**: Bitly API v4
+- **URL Shortening**: TinyURL API
 - **Build Tool**: Vite
 
 ## Getting Started
@@ -28,7 +28,7 @@ A modern, client-side video processing platform built with SvelteKit that compre
 - npm or yarn
 - Supabase account (for database and authentication)
 - Google Cloud Platform account (for Google Drive API)
-- Bitly account (for URL shortening)
+- TinyURL account (for URL shortening)
 
 ### Installation
 
@@ -63,7 +63,7 @@ A modern, client-side video processing platform built with SvelteKit that compre
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
    VITE_GOOGLE_API_KEY=your_google_api_key_here
    VITE_GOOGLE_CLIENT_ID=your_google_client_id_here
-   VITE_BITLY_ACCESS_TOKEN=your_bitly_access_token_here
+   VITE_TINYURL_API_KEY=your_tinyurl_api_key_here
    ```
 
 5. **Start the development server**
@@ -90,19 +90,19 @@ A modern, client-side video processing platform built with SvelteKit that compre
 4. Create credentials (API Key and OAuth 2.0 Client ID)
 5. Add your domain to authorized origins
 
-### Bitly API
+### TinyURL API
 
-1. Sign up at [Bitly](https://bitly.com/)
-2. Go to Settings > API
-3. Generate an access token
-4. Optionally set up a custom domain
+1. Sign up at [TinyURL](https://tinyurl.com/)
+2. Go to Developer Portal to get your API key
+3. The API key is optional for basic URL shortening
+4. For advanced features, you may need a paid plan
 
 ## Usage
 
 1. **Upload Video**: Drag and drop or click to select a video file
 2. **Processing**: The video is compressed client-side using FFmpeg.js
 3. **Upload**: Compressed video is uploaded to Google Drive
-4. **Share**: A shortened link is generated using Bitly
+4. **Share**: A shortened link is generated using TinyURL
 5. **Download**: Access the compressed video or share the link
 
 ## Supported Formats
@@ -144,7 +144,7 @@ src/
 - `videoProcessing.ts` - Main processing orchestration
 - `ffmpeg.ts` - FFmpeg.js integration
 - `googleDrive.ts` - Google Drive API client
-- `bitly.ts` - Bitly API client
+- `tinyurl.ts` - TinyURL API client
 
 ## Deployment
 
@@ -161,7 +161,7 @@ Set the following environment variables in your deployment platform:
 
 - `VITE_GOOGLE_API_KEY`
 - `VITE_GOOGLE_CLIENT_ID`
-- `VITE_BITLY_ACCESS_TOKEN`
+- `VITE_TINYURL_API_KEY`
 
 ## Browser Support
 
@@ -193,8 +193,8 @@ Set the following environment variables in your deployment platform:
    - Check domain authorization
    - Ensure Drive API is enabled
 
-3. **Bitly link generation fails**
-   - Verify access token
+3. **TinyURL link generation fails**
+   - Verify API key (optional for basic usage)
    - Check API rate limits
    - Ensure account is active
 
