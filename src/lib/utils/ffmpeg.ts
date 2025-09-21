@@ -14,6 +14,9 @@ export class VideoProcessor {
       this.ffmpeg.on('log', ({ message }) => {
         console.log('FFmpeg log:', message);
       });
+      this.ffmpeg.on('progress', ({ progress }) => {
+        console.log('FFmpeg progress:', Math.round(progress * 100) + '%');
+      });
     }
   }
   
@@ -27,29 +30,67 @@ export class VideoProcessor {
     try {
       console.log('Starting FFmpeg initialization...');
       
-      // Use local static files instead of CDN to avoid CORS issues
-      const baseURL = '/ffmpeg';
+      // Try multiple loading strategies
+      const strategies = [
+        // Strategy 1: Local static files
+        async () => {
+          const baseURL = '/ffmpeg';
+          console.log(`Loading FFmpeg from local static files: ${baseURL}`);
+          
+          // Test if files are accessible first
+          try {
+            const response = await fetch(`${baseURL}/ffmpeg-core.js`);
+            if (!response.ok) {
+              throw new Error(`Static files not accessible: ${response.status}`);
+            }
+            console.log('Static FFmpeg files are accessible');
+          } catch (error) {
+            console.warn('Static files test failed:', error);
+            throw error;
+          }
+          
+          return this.ffmpeg!.load({
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+          });
+        },
+        // Strategy 2: CDN fallback
+        async () => {
+          console.log('Loading FFmpeg from CDN fallback...');
+          return this.ffmpeg!.load({
+            coreURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.js', 'text/javascript'),
+            wasmURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm/ffmpeg-core.wasm', 'application/wasm'),
+          });
+        }
+      ];
       
-      console.log(`Loading FFmpeg from local static files: ${baseURL}`);
+      let lastError: Error | null = null;
       
-      // Add timeout to prevent infinite hanging
-      const loadPromise = this.ffmpeg!.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-      });
+      for (const strategy of strategies) {
+        try {
+          const loadPromise = strategy();
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('FFmpeg load timeout after 30 seconds')), 30000);
+          });
+          
+          await Promise.race([loadPromise, timeoutPromise]);
+          
+          this.isLoaded = true;
+          console.log('FFmpeg loaded successfully');
+          return;
+          
+        } catch (error) {
+          console.warn('FFmpeg loading strategy failed:', error);
+          lastError = error instanceof Error ? error : new Error('Unknown error');
+          continue;
+        }
+      }
       
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('FFmpeg load timeout after 30 seconds')), 30000);
-      });
-      
-      await Promise.race([loadPromise, timeoutPromise]);
-      
-      this.isLoaded = true;
-      console.log('FFmpeg loaded successfully from local static files');
+      throw lastError || new Error('All FFmpeg loading strategies failed');
       
     } catch (error) {
-      console.error('Failed to load FFmpeg from local static files:', error);
-      throw new Error(`Failed to initialize video processor: ${error instanceof Error ? error.message : 'Unknown error'}. Please ensure FFmpeg files are available in the static directory.`);
+      console.error('Failed to load FFmpeg:', error);
+      throw new Error(`Failed to initialize video processor: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your internet connection and try again.`);
     }
   }
   

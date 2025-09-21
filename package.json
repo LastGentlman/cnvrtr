@@ -36,7 +36,7 @@
   "author": "Convertr Team",
   "license": "MIT",
   "engines": {
-    "node": "20.x"
+    "node": ">=20.x"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
