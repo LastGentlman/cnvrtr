@@ -27,64 +27,29 @@ export class VideoProcessor {
     try {
       console.log('Starting FFmpeg initialization...');
       
-      // Load FFmpeg with timeout and better error handling
-      const cdnUrls = [
-        'https://unpkg.com/@ffmpeg/core@0.12.15/dist/esm',
-        'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.15/dist/esm',
-        'https://unpkg.com/@ffmpeg/core@0.12.15/dist/umd',
-        'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.15/dist/umd',
-        'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm',
-        'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm'
-      ];
+      // Use local static files instead of CDN to avoid CORS issues
+      const baseURL = '/ffmpeg';
       
-      let loadSuccess = false;
-      let lastError: Error | null = null;
+      console.log(`Loading FFmpeg from local static files: ${baseURL}`);
       
-      for (const baseURL of cdnUrls) {
-        try {
-          console.log(`Attempting to load FFmpeg from: ${baseURL}`);
-          
-          // Add timeout to prevent infinite hanging
-          const loadPromise = this.ffmpeg!.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-          });
-          
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('FFmpeg load timeout after 30 seconds')), 30000);
-          });
-          
-          await Promise.race([loadPromise, timeoutPromise]);
-          
-          loadSuccess = true;
-          console.log('FFmpeg loaded successfully from:', baseURL);
-          break;
-          
-        } catch (error) {
-          console.warn(`Failed to load from ${baseURL}:`, error);
-          lastError = error as Error;
-          continue;
-        }
-      }
+      // Add timeout to prevent infinite hanging
+      const loadPromise = this.ffmpeg!.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      });
       
-      if (!loadSuccess) {
-        // Try one more approach with a different loading method
-        console.log('All CDN sources failed, trying alternative loading method...');
-        try {
-          await this.ffmpeg!.load();
-          loadSuccess = true;
-          console.log('FFmpeg loaded successfully with default method');
-        } catch (fallbackError) {
-          console.error('Fallback loading also failed:', fallbackError);
-          throw lastError || new Error('All loading methods failed. Please check your internet connection and try again.');
-        }
-      }
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('FFmpeg load timeout after 30 seconds')), 30000);
+      });
+      
+      await Promise.race([loadPromise, timeoutPromise]);
       
       this.isLoaded = true;
-      console.log('FFmpeg initialization completed successfully');
+      console.log('FFmpeg loaded successfully from local static files');
+      
     } catch (error) {
-      console.error('Failed to load FFmpeg from all sources:', error);
-      throw new Error(`Failed to initialize video processor: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your internet connection and try again.`);
+      console.error('Failed to load FFmpeg from local static files:', error);
+      throw new Error(`Failed to initialize video processor: ${error instanceof Error ? error.message : 'Unknown error'}. Please ensure FFmpeg files are available in the static directory.`);
     }
   }
   
