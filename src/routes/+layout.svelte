@@ -4,7 +4,7 @@
   
   // Declare props to avoid warnings
   export const data: any = undefined;
-  export let params: any = undefined;
+  export const params: any = undefined;
   
   onMount(() => {
     // Initialize app state

@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/routes/**/*.js": {
+      "runtime": "nodejs20.x"
+    }
+  },
+  "buildCommand": "npm run build",
+  "outputDirectory": ".svelte-kit",
+  "framework": "sveltekit"
+}

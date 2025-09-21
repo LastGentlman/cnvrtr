@@ -46,6 +46,7 @@
           {#if video.originalFile}
             <source src={URL.createObjectURL(video.originalFile)} type={video.originalFile.type} />
           {/if}
+          <track kind="captions" src="" label="No captions available" srclang="en" default />
           Your browser does not support the video tag.
         </video>
         
