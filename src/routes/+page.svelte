@@ -6,13 +6,12 @@
   import LinkGenerator from '$lib/components/LinkGenerator.svelte';
   import { processingQueue, currentVideo } from '$lib/stores/video';
   import { videoProcessingService } from '$lib/services/videoProcessing';
-  import { demoVideoProcessingService } from '$lib/services/demoProcessing';
   import type { VideoFile } from '$lib/stores/video';
   import { browser } from '$app/environment';
   
   // Declare props to avoid warnings
   export const data: any = undefined;
-  export const params: any = undefined;
+  export let params: any = undefined;
   
   let showPreview = false;
   let showLinkGenerator = false;
@@ -56,61 +55,40 @@
       currentVideo.set(video);
       showPreview = true;
       
-      // Start processing - try real processing first, fallback to demo
-      try {
-        console.log('Attempting real video processing...');
-        await videoProcessingService.processVideo(file, {
-          quality: 0.8,
-          enableGoogleDrive: false, // Disable for now due to API setup
-          enableTinyUrl: false, // Disable for now due to API setup
-        });
-        
-        // Update video status
-        currentVideo.update(v => v ? { ...v, status: 'completed', progress: 100 } : null);
-        showLinkGenerator = true;
-        
-      } catch (error) {
-        console.warn('Real processing failed, falling back to demo mode:', error);
-        
-        try {
-          // Fallback to demo processing
-          console.log('Starting demo video processing...');
-          await demoVideoProcessingService.processVideo(file, {
-            quality: 0.8,
-            enableGoogleDrive: false,
-            enableTinyUrl: false,
-          });
-          
-          // Update video status
-          currentVideo.update(v => v ? { ...v, status: 'completed', progress: 100 } : null);
-          showLinkGenerator = true;
-          
-          // Show demo notice
-          console.log('Demo processing completed successfully!');
-          
-        } catch (demoError) {
-          console.error('Demo processing also failed:', demoError);
-          
-          // Show a user-friendly error message
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-          currentVideo.update(v => v ? { 
-            ...v, 
-            status: 'error', 
-            error: errorMessage 
-          } : null);
-          
-          // Show a fallback message
-          alert(`Video processing failed: ${errorMessage}\n\nThis is a demo application. In a production environment, you would need to set up API keys for Google Drive and TinyURL integration.`);
-        }
-      }
+      // Start real video processing
+      console.log('Starting video processing...');
+      console.log('Note: First-time processing may take longer as FFmpeg loads...');
+      
+      await videoProcessingService.processVideo(file, {
+        quality: 0.8,
+        enableGoogleDrive: false, // Disable for now due to API setup
+        enableTinyUrl: false, // Disable for now due to API setup
+        preferredFormat: 'webm', // Use WebM as default, with MP4 fallback
+      });
+      
+      // Update video status
+      currentVideo.update(v => v ? { ...v, status: 'completed', progress: 100 } : null);
+      showLinkGenerator = true;
       
     } catch (error) {
-      console.error('Processing failed:', error);
+      console.error('Video processing failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       currentVideo.update(v => v ? { 
         ...v, 
         status: 'error', 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+        error: errorMessage 
       } : null);
+      
+      // Show user-friendly error message
+      if (errorMessage.includes('Failed to initialize video processor') || 
+          errorMessage.includes('All loading methods failed') ||
+          errorMessage.includes('FFmpeg load timeout')) {
+        alert(`Video processing failed: ${errorMessage}\n\nThis is likely due to network issues or CDN problems. Please:\n1. Check your internet connection\n2. Try refreshing the page\n3. Try again in a few minutes\n\nIf the problem persists, the video processing service may be temporarily unavailable.`);
+      } else if (errorMessage.includes('too large or complex for processing')) {
+        alert(`Video processing failed: ${errorMessage}\n\nPlease try:\n1. Using a smaller video file (under 50MB)\n2. Reducing the video resolution\n3. Using a shorter video\n4. Converting to MP4 format first\n\nLarge or complex videos may exceed browser memory limits.`);
+      } else {
+        alert(`Video processing failed: ${errorMessage}\n\nPlease check your internet connection and try again.`);
+      }
     } finally {
       isProcessing = false;
     }
@@ -134,14 +112,14 @@
       Perfect for teams and organizations.
     </p>
     
-    <!-- Demo Notice -->
-    <div class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg max-w-2xl mx-auto">
+    <!-- Processing Notice -->
+    <div class="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg max-w-2xl mx-auto">
       <div class="flex items-center justify-center">
-        <svg class="h-5 w-5 text-blue-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <svg class="h-5 w-5 text-green-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <p class="text-sm text-blue-800">
-          <strong>Demo Mode:</strong> This is a demonstration application. Video processing is simulated for testing purposes.
+        <p class="text-sm text-green-800">
+          <strong>Real Processing:</strong> Videos are processed using FFmpeg with WebM/MP4 optimization. First upload may take longer as the processor loads.
         </p>
       </div>
     </div>
@@ -189,7 +167,7 @@
           </svg>
         </div>
         <h3 class="text-lg font-medium text-gray-900 mb-2">Smart Compression</h3>
-        <p class="text-gray-500">Reduce file sizes by 30-50% while maintaining visual quality using advanced algorithms.</p>
+        <p class="text-gray-500">Reduce file sizes by 30-50% while maintaining visual quality using VP9 and H.264 codecs.</p>
       </div>
 
       <div class="card text-center">
@@ -199,7 +177,7 @@
           </svg>
         </div>
         <h3 class="text-lg font-medium text-gray-900 mb-2">Lightning Fast</h3>
-        <p class="text-gray-500">Process videos in minutes, not hours. Client-side processing for maximum speed.</p>
+        <p class="text-gray-500">Process videos in minutes, not hours. Real-time compression using FFmpeg for maximum speed.</p>
       </div>
 
       <div class="card text-center">

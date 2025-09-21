@@ -2,8 +2,6 @@ import { videoProcessor } from '$lib/utils/ffmpeg';
 import { googleDriveService } from '$lib/utils/googleDrive';
 import { tinyUrlService } from '$lib/utils/tinyurl';
 import { addToQueue, updateTaskProgress, completeTask, type ProcessingTask } from '$lib/stores/video';
-import { databaseService } from '$lib/services/database';
-import { getCurrentUser } from '$lib/supabase';
 import { generateId } from '$lib/utils/format';
 import { browser } from '$app/environment';
 
@@ -12,6 +10,7 @@ export interface ProcessingOptions {
   enableGoogleDrive: boolean;
   enableTinyUrl: boolean;
   folderId?: string;
+  preferredFormat?: 'webm' | 'mp4'; // Default: 'webm'
 }
 
 export class VideoProcessingService {
@@ -23,6 +22,7 @@ export class VideoProcessingService {
       quality: 0.8,
       enableGoogleDrive: true,
       enableTinyUrl: true,
+      preferredFormat: 'webm',
     }
   ): Promise<ProcessingTask> {
     if (!browser) {
@@ -36,40 +36,19 @@ export class VideoProcessingService {
     this.isProcessing = true;
     const taskId = addToQueue(file);
     
-    // Get current user for database tracking
-    const user = await getCurrentUser();
-    let dbJobId: string | null = null;
-    
     try {
-      // Create database job record if user is authenticated
-      if (user) {
-        dbJobId = await databaseService.createProcessingJob({
-          user_id: user.id,
-          file_name: file.name,
-          file_size: file.size,
-          file_type: file.type,
-          status: 'pending',
-          progress: 0,
-          original_size: file.size
-        });
-      }
-      
       // Update status to processing
       updateTaskProgress(taskId, 0, 'processing');
       
-      // Update database status
-      if (dbJobId) {
-        await databaseService.updateProcessingJob(dbJobId, {
-          status: 'processing',
-          progress: 0
-        });
-      }
+      // Step 1: Initialize FFmpeg and compress video (0-70% progress)
+      updateTaskProgress(taskId, 5, 'processing');
+      console.log('Initializing video processor...');
       
-      // Step 1: Compress video (0-70% progress)
-      updateTaskProgress(taskId, 10, 'processing');
       const compressedFile = await this.compressVideo(file, (progress) => {
-        updateTaskProgress(taskId, 10 + (progress * 0.6), 'processing');
-      });
+        // Map FFmpeg progress (0-100) to our progress range (5-70)
+        const mappedProgress = 5 + (progress * 0.65);
+        updateTaskProgress(taskId, mappedProgress, 'processing');
+      }, options.preferredFormat);
       
       // Step 2: Upload to Google Drive (70-90% progress)
       let driveFile = null;
@@ -105,17 +84,7 @@ export class VideoProcessingService {
       // Complete the task
       const processingTime = Date.now(); // Would be calculated from start time
       
-      // Update database with completion
-      if (dbJobId) {
-        await databaseService.updateProcessingJob(dbJobId, {
-          status: 'completed',
-          progress: 100,
-          compressed_size: compressedFile.size,
-          processing_time: processingTime,
-          download_url: URL.createObjectURL(compressedFile),
-          share_url: shareUrl
-        });
-      }
+      // Processing completed successfully
       
       completeTask(taskId, {
         compressedSize: compressedFile.size,
@@ -140,13 +109,7 @@ export class VideoProcessingService {
       console.error('Video processing failed:', error);
       updateTaskProgress(taskId, 0, 'error');
       
-      // Update database with error
-      if (dbJobId) {
-        await databaseService.updateProcessingJob(dbJobId, {
-          status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Unknown error occurred'
-        });
-      }
+      // Processing failed
       
       completeTask(taskId, {
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -159,10 +122,12 @@ export class VideoProcessingService {
   
   private async compressVideo(
     file: File,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    preferredFormat?: 'webm' | 'mp4'
   ): Promise<File> {
     try {
-      return await videoProcessor.compressVideo(file, onProgress);
+      console.log('Starting video compression...');
+      return await videoProcessor.compressVideo(file, onProgress, preferredFormat);
     } catch (error) {
       console.error('Video compression failed:', error);
       
@@ -170,8 +135,14 @@ export class VideoProcessingService {
       if (error instanceof Error) {
         if (error.message.includes('Failed to initialize video processor')) {
           throw new Error('Video processor initialization failed. Please check your internet connection and try again.');
+        } else if (error.message.includes('FFmpeg load timeout')) {
+          throw new Error('Video processor loading timed out. Please check your internet connection and try again.');
         } else if (error.message.includes('Failed to compress video')) {
           throw new Error('Video compression failed. The file might be corrupted or in an unsupported format.');
+        } else if (error.message.includes('memory access out of bounds')) {
+          throw new Error('Video file is too large or complex for processing. Please try with a smaller file or lower resolution.');
+        } else if (error.message.includes('All CDN sources failed')) {
+          throw new Error('Unable to load video processor. Please check your internet connection and try again.');
         } else {
           throw new Error(`Video compression failed: ${error.message}`);
         }
@@ -236,29 +207,48 @@ export class VideoProcessingService {
   }> {
     const errors: string[] = [];
     
-    // Check file size (200MB limit)
-    const maxSize = 200 * 1024 * 1024;
+    // Check file size (50MB limit for better memory management)
+    const maxSize = 50 * 1024 * 1024; // Reduced from 200MB to 50MB for better memory management
     if (file.size > maxSize) {
-      errors.push(`File size too large. Maximum size: ${this.formatFileSize(maxSize)}`);
+      errors.push(`File size too large. Maximum size: ${this.formatFileSize(maxSize)}. Large files may cause memory issues during processing.`);
     }
     
-    // Check file format
-    const supportedFormats = ['mp4', 'avi', 'mov', 'mkv', 'webm'];
+    // Warn for files larger than 20MB
+    const warningSize = 20 * 1024 * 1024;
+    if (file.size > warningSize) {
+      console.warn(`Large file detected (${this.formatFileSize(file.size)}). Processing may take longer and use more memory.`);
+    }
+    
+    // Check file format - prioritize WebM and MP4 for web optimization
+    const preferredFormats = ['webm', 'mp4']; // Preferred formats for web
+    const supportedFormats = ['webm', 'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', '3gp'];
     const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    
     if (!fileExtension || !supportedFormats.includes(fileExtension)) {
-      errors.push(`Unsupported file format. Supported formats: ${supportedFormats.join(', ')}`);
+      errors.push(`Unsupported file format. Preferred formats: ${preferredFormats.join(', ')}. Supported formats: ${supportedFormats.join(', ')}`);
+    } else if (!preferredFormats.includes(fileExtension)) {
+      // Add a warning for non-preferred formats
+      console.warn(`File format '${fileExtension}' is supported but not optimized for web. Consider using WebM or MP4 for better performance.`);
     }
     
-    // Check MIME type
+    // Check MIME type - prioritize WebM and MP4
+    const preferredMimeTypes = ['video/webm', 'video/mp4'];
     const supportedMimeTypes = [
+      'video/webm',
       'video/mp4',
       'video/avi',
       'video/quicktime',
       'video/x-matroska',
-      'video/webm',
+      'video/x-ms-wmv',
+      'video/x-flv',
+      'video/3gpp',
     ];
+    
     if (!supportedMimeTypes.includes(file.type)) {
-      errors.push('Unsupported MIME type');
+      errors.push(`Unsupported MIME type. Preferred types: ${preferredMimeTypes.join(', ')}`);
+    } else if (!preferredMimeTypes.includes(file.type)) {
+      // Add a warning for non-preferred MIME types
+      console.warn(`MIME type '${file.type}' is supported but not optimized for web. Consider using video/webm or video/mp4 for better performance.`);
     }
     
     return {

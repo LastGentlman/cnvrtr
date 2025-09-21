@@ -10,6 +10,10 @@ export class VideoProcessor {
     // Only initialize FFmpeg in the browser
     if (browser) {
       this.ffmpeg = new FFmpeg();
+      // Configure FFmpeg with memory settings to prevent out of bounds errors
+      this.ffmpeg.on('log', ({ message }) => {
+        console.log('FFmpeg log:', message);
+      });
     }
   }
   
@@ -21,11 +25,16 @@ export class VideoProcessor {
     if (this.isLoaded || !this.ffmpeg) return;
     
     try {
-      // Load FFmpeg with optimized settings - try multiple CDNs for reliability
+      console.log('Starting FFmpeg initialization...');
+      
+      // Load FFmpeg with timeout and better error handling
       const cdnUrls = [
-        'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd',
-        'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd',
-        'https://cdnjs.cloudflare.com/ajax/libs/ffmpeg.js/0.12.6/umd'
+        'https://unpkg.com/@ffmpeg/core@0.12.15/dist/esm',
+        'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.15/dist/esm',
+        'https://unpkg.com/@ffmpeg/core@0.12.15/dist/umd',
+        'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.15/dist/umd',
+        'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm',
+        'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm'
       ];
       
       let loadSuccess = false;
@@ -35,14 +44,22 @@ export class VideoProcessor {
         try {
           console.log(`Attempting to load FFmpeg from: ${baseURL}`);
           
-          await this.ffmpeg.load({
+          // Add timeout to prevent infinite hanging
+          const loadPromise = this.ffmpeg!.load({
             coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
             wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
           });
           
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('FFmpeg load timeout after 30 seconds')), 30000);
+          });
+          
+          await Promise.race([loadPromise, timeoutPromise]);
+          
           loadSuccess = true;
           console.log('FFmpeg loaded successfully from:', baseURL);
           break;
+          
         } catch (error) {
           console.warn(`Failed to load from ${baseURL}:`, error);
           lastError = error as Error;
@@ -51,19 +68,30 @@ export class VideoProcessor {
       }
       
       if (!loadSuccess) {
-        throw lastError || new Error('All CDN sources failed');
+        // Try one more approach with a different loading method
+        console.log('All CDN sources failed, trying alternative loading method...');
+        try {
+          await this.ffmpeg!.load();
+          loadSuccess = true;
+          console.log('FFmpeg loaded successfully with default method');
+        } catch (fallbackError) {
+          console.error('Fallback loading also failed:', fallbackError);
+          throw lastError || new Error('All loading methods failed. Please check your internet connection and try again.');
+        }
       }
       
       this.isLoaded = true;
+      console.log('FFmpeg initialization completed successfully');
     } catch (error) {
       console.error('Failed to load FFmpeg from all sources:', error);
-      throw new Error('Failed to initialize video processor. Please check your internet connection and try again.');
+      throw new Error(`Failed to initialize video processor: ${error instanceof Error ? error.message : 'Unknown error'}. Please check your internet connection and try again.`);
     }
   }
   
   async compressVideo(
     inputFile: File,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    preferredFormat: 'webm' | 'mp4' = 'webm'
   ): Promise<File> {
     if (!browser) {
       throw new Error('FFmpeg can only be used in the browser');
@@ -74,7 +102,6 @@ export class VideoProcessor {
     }
     
     const inputFileName = 'input.mp4';
-    const outputFileName = 'output.mp4';
     
     try {
       if (!this.ffmpeg) {
@@ -91,37 +118,111 @@ export class VideoProcessor {
         }
       });
       
-      // Run compression command
-      await this.ffmpeg.exec([
-        '-i', inputFileName,
-        '-c:v', 'libx264',
-        '-crf', '28', // Quality setting (lower = better quality, higher file size)
-        '-preset', 'medium', // Encoding speed vs compression efficiency
-        '-c:a', 'aac',
-        '-b:a', '128k', // Audio bitrate
-        '-movflags', '+faststart', // Optimize for streaming
-        '-y', // Overwrite output file
-        outputFileName
-      ]);
-      
-      // Read the output file
-      const outputData = await this.ffmpeg.readFile(outputFileName);
-      
-      // Convert to Blob and create File
-      const outputBlob = new Blob([outputData as BlobPart], { type: 'video/mp4' });
-      const outputFile = new File([outputBlob], this.getOutputFileName(inputFile.name), {
-        type: 'video/mp4'
-      });
-      
-      // Clean up files
-      await this.ffmpeg.deleteFile(inputFileName);
-      await this.ffmpeg.deleteFile(outputFileName);
-      
-      return outputFile;
+      // Try WebM first (preferred format)
+      if (preferredFormat === 'webm') {
+        try {
+          return await this.compressToWebM(inputFile, inputFileName, onProgress);
+        } catch (webmError) {
+          console.warn('WebM compression failed, falling back to MP4:', webmError);
+          return await this.compressToMP4(inputFile, inputFileName, onProgress);
+        }
+      } else {
+        // Try MP4 first
+        try {
+          return await this.compressToMP4(inputFile, inputFileName, onProgress);
+        } catch (mp4Error) {
+          console.warn('MP4 compression failed, falling back to WebM:', mp4Error);
+          return await this.compressToWebM(inputFile, inputFileName, onProgress);
+        }
+      }
     } catch (error) {
       console.error('Video compression failed:', error);
       throw new Error('Failed to compress video');
     }
+  }
+
+  private async compressToWebM(
+    inputFile: File,
+    inputFileName: string,
+    onProgress?: (progress: number) => void
+  ): Promise<File> {
+    const outputFileName = 'output.webm';
+    
+    if (!this.ffmpeg) {
+      throw new Error('FFmpeg not initialized');
+    }
+    
+    // WebM compression with VP9 codec - optimized for web and memory usage
+    await this.ffmpeg.exec([
+      '-i', inputFileName,
+      '-c:v', 'libvpx-vp9', // VP9 codec for WebM
+      '-crf', '32', // Quality setting (higher = smaller file, less memory)
+      '-b:v', '0', // Let CRF control bitrate
+      '-deadline', 'realtime', // Faster encoding, less memory usage
+      '-cpu-used', '4', // Higher CPU usage for faster encoding
+      '-threads', '2', // Limit threads to reduce memory usage
+      '-c:a', 'libopus', // Opus audio codec for WebM
+      '-b:a', '96k', // Lower audio bitrate to save memory
+      '-y', // Overwrite output file
+      outputFileName
+    ]);
+    
+    // Read the output file
+    const outputData = await this.ffmpeg.readFile(outputFileName);
+    
+    // Convert to Blob and create File
+    const outputBlob = new Blob([outputData as BlobPart], { type: 'video/webm' });
+    const outputFile = new File([outputBlob], this.getOutputFileName(inputFile.name, 'webm'), {
+      type: 'video/webm'
+    });
+    
+    // Clean up files
+    await this.ffmpeg.deleteFile(outputFileName);
+    
+    return outputFile;
+  }
+
+  private async compressToMP4(
+    inputFile: File,
+    inputFileName: string,
+    onProgress?: (progress: number) => void
+  ): Promise<File> {
+    const outputFileName = 'output.mp4';
+    
+    if (!this.ffmpeg) {
+      throw new Error('FFmpeg not initialized');
+    }
+    
+    // MP4 compression with H.264 codec - optimized for web and memory usage
+    await this.ffmpeg.exec([
+      '-i', inputFileName,
+      '-c:v', 'libx264', // H.264 codec for MP4
+      '-crf', '30', // Quality setting (higher = smaller file, less memory)
+      '-preset', 'fast', // Faster encoding, less memory usage
+      '-profile:v', 'baseline', // Baseline profile for better compatibility and less memory
+      '-level', '3.1', // Lower level for less memory usage
+      '-c:a', 'aac', // AAC audio codec for MP4
+      '-b:a', '96k', // Lower audio bitrate to save memory
+      '-movflags', '+faststart', // Optimize for streaming (moov atom at beginning)
+      '-pix_fmt', 'yuv420p', // Pixel format for maximum compatibility
+      '-threads', '2', // Limit threads to reduce memory usage
+      '-y', // Overwrite output file
+      outputFileName
+    ]);
+    
+    // Read the output file
+    const outputData = await this.ffmpeg.readFile(outputFileName);
+    
+    // Convert to Blob and create File
+    const outputBlob = new Blob([outputData as BlobPart], { type: 'video/mp4' });
+    const outputFile = new File([outputBlob], this.getOutputFileName(inputFile.name, 'mp4'), {
+      type: 'video/mp4'
+    });
+    
+    // Clean up files
+    await this.ffmpeg.deleteFile(outputFileName);
+    
+    return outputFile;
   }
   
   async generateThumbnail(
@@ -224,9 +325,9 @@ export class VideoProcessor {
     }
   }
   
-  private getOutputFileName(originalName: string): string {
+  private getOutputFileName(originalName: string, format: 'webm' | 'mp4' = 'webm'): string {
     const nameWithoutExt = originalName.replace(/\.[^/.]+$/, '');
-    return `${nameWithoutExt}_compressed.mp4`;
+    return `${nameWithoutExt}_compressed.${format}`;
   }
   
   async cleanup(): Promise<void> {
