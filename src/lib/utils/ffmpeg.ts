@@ -5,6 +5,10 @@ import { browser } from '$app/environment';
 export class VideoProcessor {
   private ffmpeg: FFmpeg | null = null;
   private isLoaded = false;
+  private clampProgress(value: number): number {
+    if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(100, value));
+  }
   
   constructor() {
     // Only initialize FFmpeg in the browser
@@ -15,7 +19,8 @@ export class VideoProcessor {
         console.log('FFmpeg log:', event.message);
       });
       this.ffmpeg.on('progress', (event: { progress: number }) => {
-        console.log('FFmpeg progress:', Math.round(event.progress * 100) + '%');
+        const pct = this.clampProgress(event.progress * 100);
+        console.log('FFmpeg progress:', Math.round(pct) + '%');
       });
     }
   }
@@ -130,26 +135,47 @@ export class VideoProcessor {
       // Set up progress tracking
       this.ffmpeg.on('progress', (event: { progress: number }) => {
         if (onProgress) {
-          onProgress(event.progress * 100);
+          onProgress(this.clampProgress(event.progress * 100));
         }
       });
       
       // Try WebM first (preferred format)
+      let lastError: unknown = null;
       if (preferredFormat === 'webm') {
         try {
           resultFile = await this.compressToWebM(inputFile, normalizedInputName, onProgress);
         } catch (webmError) {
+          lastError = webmError;
           console.warn('WebM compression failed, falling back to MP4:', webmError);
-          resultFile = await this.compressToMP4(inputFile, normalizedInputName, onProgress);
+          try {
+            resultFile = await this.compressToMP4(inputFile, normalizedInputName, onProgress);
+          } catch (mp4Error) {
+            lastError = mp4Error;
+          }
         }
       } else {
         // Try MP4 first
         try {
           resultFile = await this.compressToMP4(inputFile, normalizedInputName, onProgress);
         } catch (mp4Error) {
+          lastError = mp4Error;
           console.warn('MP4 compression failed, falling back to WebM:', mp4Error);
-          resultFile = await this.compressToWebM(inputFile, normalizedInputName, onProgress);
+          try {
+            resultFile = await this.compressToWebM(inputFile, normalizedInputName, onProgress);
+          } catch (webmError) {
+            lastError = webmError;
+          }
         }
+      }
+
+      // If both encoders failed, return the normalized/remuxed MP4 as a safe fallback
+      if (!resultFile) {
+        console.warn('Both compression attempts failed; returning normalized MP4 as fallback.');
+        const normalizedData = await this.ffmpeg.readFile(normalizedInputName);
+        const normalizedBlob = new Blob([normalizedData as BlobPart], { type: 'video/mp4' });
+        return new File([normalizedBlob], this.getOutputFileName(inputFile.name, 'mp4'), {
+          type: 'video/mp4'
+        });
       }
       return resultFile!;
     } catch (error) {
@@ -175,7 +201,6 @@ export class VideoProcessor {
       '-fflags', '+genpts',
       '-i', inputName,
       '-c', 'copy',
-      '-movflags', '+faststart',
       '-y',
       fixedName,
     ]);
@@ -195,16 +220,20 @@ export class VideoProcessor {
     
     // WebM compression with VP9 codec - optimized for web and memory usage
     await this.ffmpeg.exec([
+      '-analyzeduration', '0',
+      '-probesize', '32k',
       '-i', inputFileName,
       // Downscale and reduce FPS to lower memory and improve web delivery
       '-vf', 'scale=w=min(iw\\,1280):h=-2:flags=bicubic',
       '-r', '20',
       '-c:v', 'libvpx-vp9', // VP9 codec for WebM
-      '-crf', '32', // Quality setting (higher = smaller file, less memory)
+      '-crf', '33', // Slightly lower quality for lower memory/bitrate
       '-b:v', '0', // Let CRF control bitrate
       '-deadline', 'realtime', // Faster encoding, less memory usage
       '-cpu-used', '4', // Higher CPU usage for faster encoding
-      '-threads', '2', // Limit threads to reduce memory usage
+      '-threads', '1', // Single thread to lower wasm memory usage
+      '-lag-in-frames', '0', // Reduce lookahead buffers
+      '-auto-alt-ref', '0', // Disable alt-ref frames to save memory
       '-pix_fmt', 'yuv420p',
       '-c:a', 'libopus', // Opus audio codec for WebM
       '-b:a', '96k', // Lower audio bitrate to save memory
@@ -240,6 +269,8 @@ export class VideoProcessor {
     
     // MP4 compression with H.264 codec - optimized for web and memory usage
     await this.ffmpeg.exec([
+      '-analyzeduration', '0',
+      '-probesize', '32k',
       '-i', inputFileName,
       // Downscale and reduce FPS to lower memory and improve web delivery
       '-vf', 'scale=w=min(iw\\,1280):h=-2:flags=bicubic',
@@ -253,7 +284,7 @@ export class VideoProcessor {
       '-b:a', '96k', // Lower audio bitrate to save memory
       '-movflags', '+faststart', // Optimize for streaming (moov atom at beginning)
       '-pix_fmt', 'yuv420p', // Pixel format for maximum compatibility
-      '-threads', '2', // Limit threads to reduce memory usage
+      '-threads', '1', // Single thread to lower wasm memory usage
       '-y', // Overwrite output file
       outputFileName
     ]);
