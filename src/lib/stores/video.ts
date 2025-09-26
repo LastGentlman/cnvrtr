@@ -73,7 +73,7 @@ export function completeTask(taskId: string, result: Partial<ProcessingTask>) {
   processingQueue.update(queue => 
     queue.map(task => 
       task.id === taskId 
-        ? { ...task, ...result, status: 'completed' }
+        ? { ...task, ...result, status: 'completed', progress: 100 }
         : task
     )
   );
