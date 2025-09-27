@@ -204,8 +204,8 @@ export class VideoProcessor {
       throw new Error('FFmpeg not initialized');
     }
     const fixedName = 'input.fixed.mp4';
-    // Remux to MP4 while transcoding unsupported audio (e.g., pcm_mulaw) to AAC.
-    // Copy video as-is to avoid unnecessary re-encode; add faststart for web playback.
+    // Remux to MP4 while transcoding unsupported audio (e.g., pcm_mulaw) to AAC at a lighter setting.
+    // Copy video as-is to avoid re-encode. Avoid '+faststart' to prevent a second pass/moov relocation in wasm.
     await this.ffmpeg.exec([
       '-fflags', '+genpts',
       '-i', inputName,
@@ -213,11 +213,14 @@ export class VideoProcessor {
       '-map', '0:a:0?',
       '-c:v', 'copy',
       '-c:a', 'aac',
-      '-b:a', '128k',
-      '-movflags', '+faststart',
+      '-ar', '48000',
+      '-ac', '1',
+      '-b:a', '64k',
       '-y',
       fixedName,
     ]);
+    // Free original input to reduce MEMFS footprint once normalized exists
+    try { await this.ffmpeg.deleteFile(inputName); } catch {}
     return fixedName;
   }
 
@@ -232,25 +235,27 @@ export class VideoProcessor {
       throw new Error('FFmpeg not initialized');
     }
     
-    // WebM compression with VP9 codec - optimized for web and memory usage
+    // WebM compression with VP9 codec - extra conservative for wasm memory
     await this.ffmpeg.exec([
       '-analyzeduration', '0',
       '-probesize', '32k',
       '-i', inputFileName,
       // Downscale and reduce FPS to lower memory and improve web delivery
-      '-vf', 'scale=w=min(iw\\,1280):h=-2:flags=bicubic',
-      '-r', '20',
+      '-vf', 'scale=w=min(iw\\,960):h=-2:flags=bicubic',
+      '-r', '15',
       '-c:v', 'libvpx-vp9', // VP9 codec for WebM
-      '-crf', '33', // Slightly lower quality for lower memory/bitrate
+      '-crf', '36', // Lower quality to reduce bitrate/memory
       '-b:v', '0', // Let CRF control bitrate
-      '-deadline', 'realtime', // Faster encoding, less memory usage
-      '-cpu-used', '4', // Higher CPU usage for faster encoding
+      '-deadline', 'realtime',
+      '-cpu-used', '5',
       '-threads', '1', // Single thread to lower wasm memory usage
       '-lag-in-frames', '0', // Reduce lookahead buffers
       '-auto-alt-ref', '0', // Disable alt-ref frames to save memory
       '-pix_fmt', 'yuv420p',
       '-c:a', 'libopus', // Opus audio codec for WebM
-      '-b:a', '96k', // Lower audio bitrate to save memory
+      '-ar', '16000',
+      '-ac', '1',
+      '-b:a', '32k',
       '-y', // Overwrite output file
       outputFileName
     ]);
@@ -281,7 +286,7 @@ export class VideoProcessor {
       throw new Error('FFmpeg not initialized');
     }
     
-    // MP4 compression with H.264 codec - optimized for web and memory usage
+    // MP4 compression with H.264 codec - optimized for wasm memory usage
     await this.ffmpeg.exec([
       '-analyzeduration', '0',
       '-probesize', '32k',
@@ -290,13 +295,15 @@ export class VideoProcessor {
       '-vf', 'scale=w=min(iw\\,1280):h=-2:flags=bicubic',
       '-r', '20',
       '-c:v', 'libx264', // H.264 codec for MP4
-      '-crf', '30', // Quality setting (higher = smaller file, less memory)
-      '-preset', 'fast', // Faster encoding, less memory usage
+      '-crf', '32', // Slightly lower quality to reduce bitrate/memory
+      '-preset', 'veryfast', // Reduce memory usage
       '-profile:v', 'baseline', // Baseline profile for better compatibility and less memory
       '-level', '3.1', // Lower level for less memory usage
       '-c:a', 'aac', // AAC audio codec for MP4
-      '-b:a', '96k', // Lower audio bitrate to save memory
-      '-movflags', '+faststart', // Optimize for streaming (moov atom at beginning)
+      '-ar', '44100',
+      '-ac', '1',
+      '-b:a', '64k',
+      // Avoid '+faststart' to prevent moov relocation second pass in wasm
       '-pix_fmt', 'yuv420p', // Pixel format for maximum compatibility
       '-threads', '1', // Single thread to lower wasm memory usage
       '-y', // Overwrite output file
