@@ -22,7 +22,7 @@ export class VideoProcessingService {
       quality: 0.8,
       enableGoogleDrive: true,
       enableTinyUrl: true,
-      preferredFormat: 'webm',
+      preferredFormat: 'mp4',
     }
   ): Promise<ProcessingTask> {
     if (!browser) {

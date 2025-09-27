@@ -63,7 +63,7 @@
         quality: 0.8,
         enableGoogleDrive: false, // Disable for now due to API setup
         enableTinyUrl: false, // Disable for now due to API setup
-        preferredFormat: 'webm', // Use WebM as default, with MP4 fallback
+        preferredFormat: 'mp4', // Prefer MP4 to reduce wasm memory use
       });
       
       // Update video status
