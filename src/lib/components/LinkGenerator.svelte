@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { VideoFile } from '$lib/stores/video';
   import { formatFileSize } from '$lib/utils/format';
+  import { tinyUrlService } from '$lib/utils/tinyurl';
   
   export let video: VideoFile;
   
@@ -15,13 +16,18 @@
     isGeneratingLink = true;
     
     try {
-      // Simulate API call to generate shortened link
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // For demo purposes, generate a mock shortened URL
-      const mockShortUrl = `https://bit.ly/${Math.random().toString(36).substr(2, 8)}`;
-      shareUrl = mockShortUrl;
-      video.shareUrl = mockShortUrl;
+      // Prefer an existing share URL if already generated upstream
+      if (video.shareUrl) {
+        shareUrl = video.shareUrl;
+      } else if (video.downloadUrl && /^https?:\/\//.test(video.downloadUrl)) {
+        // If there is a real, publicly accessible URL, shorten it via TinyURL
+        const { shortUrl } = await tinyUrlService.shortenUrl(video.downloadUrl, 'compressed-video');
+        shareUrl = shortUrl;
+        video.shareUrl = shortUrl;
+      } else {
+        // No real shareable URL available. Keep shareUrl empty.
+        console.warn('No shareable URL available to shorten. Ensure upload/sharing is enabled.');
+      }
       
       // Generate download URL
       if (video.processedFile) {
