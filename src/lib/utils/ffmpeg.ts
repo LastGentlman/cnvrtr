@@ -170,12 +170,20 @@ export class VideoProcessor {
 
       // If both encoders failed, return the normalized/remuxed MP4 as a safe fallback
       if (!resultFile) {
-        console.warn('Both compression attempts failed; returning normalized MP4 as fallback.');
-        const normalizedData = await this.ffmpeg.readFile(normalizedInputName);
-        const normalizedBlob = new Blob([normalizedData as BlobPart], { type: 'video/mp4' });
-        return new File([normalizedBlob], this.getOutputFileName(inputFile.name, 'mp4'), {
-          type: 'video/mp4'
-        });
+        console.warn('Both compression attempts failed; attempting to return normalized MP4 as fallback.');
+        try {
+          if (normalizedInputName !== inputFileName) {
+            const normalizedData = await this.ffmpeg.readFile(normalizedInputName);
+            const normalizedBlob = new Blob([normalizedData as BlobPart], { type: 'video/mp4' });
+            return new File([normalizedBlob], this.getOutputFileName(inputFile.name, 'mp4'), {
+              type: 'video/mp4'
+            });
+          }
+        } catch (readErr) {
+          console.warn('Reading normalized file failed; falling back to original input file.', readErr);
+        }
+        // Final fallback: return the original file unmodified
+        return inputFile;
       }
       return resultFile!;
     } catch (error) {
@@ -196,11 +204,17 @@ export class VideoProcessor {
       throw new Error('FFmpeg not initialized');
     }
     const fixedName = 'input.fixed.mp4';
-    // Try a lightweight remux to MP4 with generated PTS and faststart
+    // Remux to MP4 while transcoding unsupported audio (e.g., pcm_mulaw) to AAC.
+    // Copy video as-is to avoid unnecessary re-encode; add faststart for web playback.
     await this.ffmpeg.exec([
       '-fflags', '+genpts',
       '-i', inputName,
-      '-c', 'copy',
+      '-map', '0:v:0?',
+      '-map', '0:a:0?',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-movflags', '+faststart',
       '-y',
       fixedName,
     ]);
