@@ -1,4 +1,5 @@
 // Google Drive API integration
+import { browser } from '$app/environment';
 export interface DriveFile {
   id: string;
   name: string;
@@ -20,20 +21,94 @@ export interface DriveUploadConfig {
 
 export class GoogleDriveService {
   private apiKey: string;
+  private clientId: string;
   private accessToken: string | null = null;
+  private tokenExpiryMs = 0;
+  private tokenClient: any | null = null;
+  private gisLoaded = false;
+  private readonly scopes = 'https://www.googleapis.com/auth/drive.file';
   
-  constructor(apiKey: string) {
+  constructor(apiKey: string, clientId: string) {
     this.apiKey = apiKey;
+    this.clientId = clientId;
   }
   
-  setAccessToken(token: string) {
+  setAccessToken(token: string, expiresInSeconds?: number) {
     this.accessToken = token;
+    if (typeof expiresInSeconds === 'number' && isFinite(expiresInSeconds)) {
+      this.tokenExpiryMs = Date.now() + (expiresInSeconds * 1000) - 15000; // 15s early skew
+    }
   }
   
-  async authenticate(): Promise<void> {
-    // This would integrate with Google OAuth 2.0
-    // For now, we'll simulate the authentication
-    console.log('Authenticating with Google Drive...');
+  private isTokenValid(): boolean {
+    return !!this.accessToken && Date.now() < this.tokenExpiryMs;
+  }
+  
+  private async loadGis(): Promise<void> {
+    if (!browser) return;
+    if (this.gisLoaded) return;
+    await new Promise<void>((resolve, reject) => {
+      const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+      if (existing) {
+        existing.addEventListener('load', () => resolve());
+        // If already loaded, resolve immediately
+        if ((window as any).google?.accounts?.oauth2) {
+          resolve();
+        }
+      } else {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
+        document.head.appendChild(script);
+      }
+    });
+    this.gisLoaded = true;
+  }
+  
+  async authenticate(forceConsent: boolean = false): Promise<void> {
+    if (!browser) {
+      throw new Error('Google Drive authentication is only available in the browser');
+    }
+    await this.loadGis();
+    if (!this.tokenClient) {
+      this.tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+        client_id: this.clientId,
+        scope: this.scopes,
+        callback: (response: any) => {
+          // This is handled in the request promise below
+        }
+      });
+    }
+    if (!forceConsent && this.isTokenValid()) {
+      return;
+    }
+    await new Promise<void>((resolve, reject) => {
+      try {
+        this.tokenClient!.callback = (resp: any) => {
+          if (resp?.access_token) {
+            // Note: GIS does not always return expires_in here; best-effort if present
+            this.setAccessToken(resp.access_token, resp.expires_in ?? 3600);
+            resolve();
+          } else if (resp?.error) {
+            reject(new Error(resp.error));
+          } else {
+            reject(new Error('Authentication failed'));
+          }
+        };
+        this.tokenClient!.requestAccessToken({ prompt: forceConsent ? 'consent' : '' });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+  
+  private async ensureAccessToken(): Promise<void> {
+    if (!this.isTokenValid()) {
+      await this.authenticate(false);
+    }
   }
   
   async uploadFile(
@@ -59,6 +134,7 @@ export class GoogleDriveService {
     file: File,
     config: DriveUploadConfig
   ): Promise<DriveFile> {
+    await this.ensureAccessToken();
     const formData = new FormData();
     formData.append('file', file);
     
@@ -83,14 +159,19 @@ export class GoogleDriveService {
     if (!response.ok) {
       throw new Error(`Upload failed: ${response.statusText}`);
     }
-    
-    return response.json();
+    const created = await response.json();
+    // Make the file shareable and fetch full info
+    try {
+      await this.setPublicLink(created.id);
+    } catch {}
+    return this.getFileInfo(created.id);
   }
   
   private async uploadFileResumable(
     file: File,
     config: DriveUploadConfig
   ): Promise<DriveFile> {
+    await this.ensureAccessToken();
     // Step 1: Initialize resumable upload
     const metadata = {
       name: config.fileName,
@@ -148,7 +229,11 @@ export class GoogleDriveService {
         }
       } else if (chunkResponse.ok) {
         // Upload complete
-        return chunkResponse.json();
+        const created = await chunkResponse.json();
+        try {
+          await this.setPublicLink(created.id);
+        } catch {}
+        return this.getFileInfo(created.id);
       } else {
         throw new Error(`Chunk upload failed: ${chunkResponse.statusText}`);
       }
@@ -184,8 +269,10 @@ export class GoogleDriveService {
   }
   
   async getFileInfo(fileId: string): Promise<DriveFile> {
+    await this.ensureAccessToken();
+    const fields = encodeURIComponent('id,name,mimeType,size,webViewLink,webContentLink,createdTime,modifiedTime');
     const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?key=${this.apiKey}`,
+      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=${fields}&key=${this.apiKey}`,
       {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
@@ -198,6 +285,29 @@ export class GoogleDriveService {
     }
     
     return response.json();
+  }
+
+  private async setPublicLink(fileId: string): Promise<void> {
+    await this.ensureAccessToken();
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}/permissions?key=${this.apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          role: 'reader',
+          type: 'anyone',
+          allowFileDiscovery: false,
+        }),
+      }
+    );
+    if (!response.ok) {
+      // Non-fatal; user may still access the file directly
+      throw new Error(`Failed to set public permission: ${response.statusText}`);
+    }
   }
   
   async deleteFile(fileId: string): Promise<void> {
@@ -242,5 +352,6 @@ export class GoogleDriveService {
 
 // Singleton instance
 export const googleDriveService = new GoogleDriveService(
-  import.meta.env.VITE_GOOGLE_API_KEY || ''
+  import.meta.env.VITE_GOOGLE_API_KEY || '',
+  import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 );

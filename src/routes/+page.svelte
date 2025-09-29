@@ -61,8 +61,8 @@
       
       await videoProcessingService.processVideo(file, {
         quality: 0.8,
-        enableGoogleDrive: false, // Disable for now due to API setup
-        enableTinyUrl: false, // Disable for now due to API setup
+        enableGoogleDrive: true,
+        enableTinyUrl: false,
         preferredFormat: 'mp4', // Prefer MP4 to reduce wasm memory use
       });
       
