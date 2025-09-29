@@ -82,7 +82,8 @@ export class GoogleDriveService {
   
   async uploadFile(
     file: File,
-    config: Partial<DriveUploadConfig> = {}
+    config: Partial<DriveUploadConfig> = {},
+    signal?: AbortSignal
   ): Promise<DriveFile> {
     const uploadConfig: DriveUploadConfig = {
       folderId: config.folderId || 'root',
@@ -92,16 +93,21 @@ export class GoogleDriveService {
       chunkSize: config.chunkSize || 256 * 1024, // 256KB
     };
     
+    if (signal?.aborted) {
+      throw new DOMException('Operation aborted', 'AbortError');
+    }
+
     if (uploadConfig.resumable) {
-      return this.uploadFileResumable(file, uploadConfig);
+      return this.uploadFileResumable(file, uploadConfig, signal);
     } else {
-      return this.uploadFileSimple(file, uploadConfig);
+      return this.uploadFileSimple(file, uploadConfig, signal);
     }
   }
   
   private async uploadFileSimple(
     file: File,
-    config: DriveUploadConfig
+    config: DriveUploadConfig,
+    signal?: AbortSignal
   ): Promise<DriveFile> {
     await this.ensureAccessToken();
     const formData = new FormData();
@@ -122,6 +128,7 @@ export class GoogleDriveService {
           'Authorization': `Bearer ${this.accessToken}`,
         },
         body: formData,
+        signal,
       }
     );
     
@@ -138,7 +145,8 @@ export class GoogleDriveService {
   
   private async uploadFileResumable(
     file: File,
-    config: DriveUploadConfig
+    config: DriveUploadConfig,
+    signal?: AbortSignal
   ): Promise<DriveFile> {
     await this.ensureAccessToken();
     // Step 1: Initialize resumable upload
@@ -158,6 +166,7 @@ export class GoogleDriveService {
           'X-Upload-Content-Length': file.size.toString(),
         },
         body: JSON.stringify(metadata),
+        signal,
       }
     );
     
@@ -175,6 +184,9 @@ export class GoogleDriveService {
     const totalBytes = file.size;
     
     while (uploadedBytes < totalBytes) {
+      if (signal?.aborted) {
+        throw new DOMException('Operation aborted', 'AbortError');
+      }
       const chunkEnd = Math.min(uploadedBytes + config.chunkSize, totalBytes);
       const chunk = file.slice(uploadedBytes, chunkEnd);
       
@@ -185,6 +197,7 @@ export class GoogleDriveService {
           'Content-Range': `bytes ${uploadedBytes}-${chunkEnd - 1}/${totalBytes}`,
         },
         body: chunk,
+        signal,
       });
       
       if (chunkResponse.status === 308) {
