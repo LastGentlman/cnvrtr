@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { appConfig } from '$lib/stores/video';
+  import { processingQueue } from '$lib/stores/video';
   
   function getStatusColor(status: string): string {
     switch (status) {
@@ -32,6 +33,7 @@
   $: maxSize = $appConfig.maxFileSize;
   $: supportedFormats = $appConfig.supportedFormats;
   // Single upload mode: no queue UI
+  $: latestTask = $processingQueue.length > 0 ? $processingQueue[$processingQueue.length - 1] : null;
   
   function formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 Bytes';
@@ -175,6 +177,21 @@
         </div>
       {/if}
     </div>
+    
+    {#if latestTask && (latestTask.status === 'processing' || latestTask.status === 'pending')}
+      <div class="mt-4">
+        <div class="flex justify-between text-xs text-gray-500 mb-1">
+          <span>Progress</span>
+          <span>{Math.round(latestTask.progress)}%</span>
+        </div>
+        <div class="w-full bg-gray-200 rounded-full h-2">
+          <div 
+            class="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+            style="width: {latestTask.progress}%"
+          ></div>
+        </div>
+      </div>
+    {/if}
     
     <!-- Error Message -->
     {#if errorMessage}
