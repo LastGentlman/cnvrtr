@@ -157,11 +157,13 @@ export class VideoProcessingService {
     folderId?: string
   ): Promise<any> {
     try {
+      // Ensure the user is authenticated with Google before upload
+      await googleDriveService.authenticate();
       return await googleDriveService.uploadFile(file, {
         folderId,
         fileName: file.name,
         mimeType: file.type,
-        resumable: file.size > 5 * 1024 * 1024, // 5MB
+        resumable: true,
       });
     } catch (error) {
       console.error('Google Drive upload failed:', error);
