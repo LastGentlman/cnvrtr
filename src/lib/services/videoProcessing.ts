@@ -24,6 +24,7 @@ export interface ProcessingOptions {
 export class VideoProcessingService {
   private isProcessing = false;
   private userDirectoryHandle: FileSystemDirectoryHandle | null = null;
+  private abortController: AbortController | null = null;
   
   async processVideo(
     file: File,
@@ -43,6 +44,7 @@ export class VideoProcessingService {
     }
     
     this.isProcessing = true;
+    this.abortController = new AbortController();
     const taskId = addToQueue(file);
     const startTimeMs = Date.now();
     
@@ -92,7 +94,7 @@ export class VideoProcessingService {
         updateTaskProgress(taskId, 70, 'processing');
         try {
           const fileForUpload = saved ? await readBackFile(saved.fileHandle) : compressedFile;
-          driveFile = await this.uploadToGoogleDrive(fileForUpload, options.folderId);
+          driveFile = await this.uploadToGoogleDrive(fileForUpload, options.folderId, this.abortController?.signal || undefined);
           updateTaskProgress(taskId, 90, 'processing');
         } catch (error) {
           console.warn('Google Drive upload failed:', error);
@@ -163,6 +165,7 @@ export class VideoProcessingService {
       throw error;
     } finally {
       this.isProcessing = false;
+      this.abortController = null;
     }
   }
   
@@ -200,7 +203,8 @@ export class VideoProcessingService {
   
   private async uploadToGoogleDrive(
     file: File,
-    folderId?: string
+    folderId?: string,
+    signal?: AbortSignal
   ): Promise<any> {
     try {
       // Ensure the user is authenticated with Google before upload
@@ -210,7 +214,7 @@ export class VideoProcessingService {
         fileName: file.name,
         mimeType: file.type,
         resumable: true,
-      });
+      }, signal);
     } catch (error) {
       console.error('Google Drive upload failed:', error);
       throw new Error('Failed to upload to Google Drive. Please check your authentication.');
@@ -315,6 +319,17 @@ export class VideoProcessingService {
   
   async cleanup(): Promise<void> {
     await videoProcessor.cleanup();
+  }
+
+  async cancelProcessing(): Promise<void> {
+    if (!this.isProcessing) return;
+    try {
+      this.abortController?.abort();
+    } catch {}
+    try {
+      await videoProcessor.cancelCurrentOperation();
+    } catch {}
+    this.isProcessing = false;
   }
 }
 

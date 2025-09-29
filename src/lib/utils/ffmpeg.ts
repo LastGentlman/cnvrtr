@@ -6,6 +6,7 @@ export class VideoProcessor {
   private ffmpeg: FFmpeg | null = null;
   private isLoaded = false;
   private progressHandler: ((progress: number) => void) | null = null;
+  private isCancelling = false;
   private clampProgress(value: number): number {
     if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
     return Math.max(0, Math.min(100, value));
@@ -131,6 +132,9 @@ export class VideoProcessor {
       }
       
       // Write input file to FFmpeg filesystem
+      if (this.isCancelling) {
+        throw new DOMException('Operation aborted', 'AbortError');
+      }
       await this.ffmpeg.writeFile(inputFileName, await fetchFile(inputFile));
       
       // Normalize/remux to a clean MP4 when possible to avoid container oddities
@@ -150,6 +154,9 @@ export class VideoProcessor {
       
       // Try WebM first (preferred format)
       let lastError: unknown = null;
+      if (this.isCancelling) {
+        throw new DOMException('Operation aborted', 'AbortError');
+      }
       if (preferredFormat === 'webm') {
         try {
           resultFile = await this.compressToWebM(inputFile, normalizedInputName, onProgress);
@@ -446,6 +453,21 @@ export class VideoProcessor {
       // FFmpeg cleanup is handled automatically
       this.isLoaded = false;
     }
+  }
+
+  // Best-effort cancellation for in-flight operations
+  async cancelCurrentOperation(): Promise<void> {
+    this.isCancelling = true;
+    try {
+      await this.ffmpeg?.terminate?.();
+    } catch {}
+    // Recreate ffmpeg instance for future operations
+    try {
+      this.ffmpeg = new FFmpeg();
+    } catch {}
+    this.isLoaded = false;
+    this.isCancelling = false;
+    this.progressHandler = null;
   }
 }
 

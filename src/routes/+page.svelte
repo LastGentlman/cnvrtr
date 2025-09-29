@@ -25,6 +25,16 @@
     console.log('File selected:', file.name);
   }
   
+  async function handleCancel() {
+    try {
+      await videoProcessingService.cancelProcessing();
+    } catch {}
+    currentVideo.set(null);
+    showPreview = false;
+    showLinkGenerator = false;
+    isProcessing = false;
+  }
+
   async function handleStartProcessing(event: CustomEvent) {
     const { file } = event.detail;
     
@@ -149,6 +159,7 @@
         <VideoUploader 
           on:fileSelected={handleFileSelected}
           on:startProcessing={handleStartProcessing}
+          on:cancel={handleCancel}
         />
       {:else}
         <div class="card text-center">
