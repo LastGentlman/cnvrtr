@@ -101,9 +101,9 @@
           {#if task.processingTime}
             <div class="mt-3 text-xs text-gray-500">
               {#if (task.processingTime / 1000) >= 60}
-                Processing time: {Math.floor((task.processingTime / 1000) / 60)}m
+                Processing time: {Math.floor((task.processingTime / 1000) / 60)}m{#if task.status === 'completed' && task.compressedSize} · {Math.round((1 - task.compressedSize / task.originalSize) * 100)}% smaller{/if}
               {:else}
-                Processing time: {Math.round(task.processingTime / 1000)}s
+                Processing time: {Math.round(task.processingTime / 1000)}s{#if task.status === 'completed' && task.compressedSize} · {Math.round((1 - task.compressedSize / task.originalSize) * 100)}% smaller{/if}
               {/if}
             </div>
           {/if}
