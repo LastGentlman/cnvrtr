@@ -5,6 +5,7 @@ import { browser } from '$app/environment';
 export class VideoProcessor {
   private ffmpeg: FFmpeg | null = null;
   private isLoaded = false;
+  private progressHandler: ((progress: number) => void) | null = null;
   private clampProgress(value: number): number {
     if (Number.isNaN(value) || !Number.isFinite(value)) return 0;
     return Math.max(0, Math.min(100, value));
@@ -21,6 +22,14 @@ export class VideoProcessor {
       this.ffmpeg.on('progress', (event: { progress: number }) => {
         const pct = this.clampProgress(event.progress * 100);
         console.log('FFmpeg progress:', Math.round(pct) + '%');
+        // Forward to the current progress handler if set
+        if (this.progressHandler) {
+          try {
+            this.progressHandler(pct);
+          } catch (e) {
+            console.warn('Progress handler error:', e);
+          }
+        }
       });
     }
   }
@@ -132,12 +141,12 @@ export class VideoProcessor {
         normalizedInputName = inputFileName;
       }
       
-      // Set up progress tracking
-      this.ffmpeg.on('progress', (event: { progress: number }) => {
+      // Set up progress forwarding to avoid accumulating listeners
+      this.progressHandler = (pct: number) => {
         if (onProgress) {
-          onProgress(this.clampProgress(event.progress * 100));
+          onProgress(this.clampProgress(pct));
         }
-      });
+      };
       
       // Try WebM first (preferred format)
       let lastError: unknown = null;
@@ -191,6 +200,8 @@ export class VideoProcessor {
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`Failed to compress video: ${message}`);
     } finally {
+      // Detach progress handler to prevent forwarding after completion
+      this.progressHandler = null;
       // Best-effort cleanup
       try { await this.ffmpeg?.deleteFile(inputFileName); } catch {}
       if (normalizedInputName !== inputFileName) {
