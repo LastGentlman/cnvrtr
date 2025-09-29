@@ -63,6 +63,7 @@ A modern, client-side video processing platform built with SvelteKit that compre
    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
    VITE_GOOGLE_API_KEY=your_google_api_key_here
    VITE_GOOGLE_CLIENT_ID=your_google_client_id_here
+   VITE_GOOGLE_CLIENT_SECRET=your_google_client_secret_here
    VITE_TINYURL_API_KEY=your_tinyurl_api_key_here
    ```
 
@@ -87,8 +88,12 @@ A modern, client-side video processing platform built with SvelteKit that compre
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project or select existing one
 3. Enable the Google Drive API
-4. Create credentials (API Key and OAuth 2.0 Client ID)
-5. Add your domain to authorized origins
+4. Create credentials:
+   - API Key (restrict to Drive API)
+   - OAuth 2.0 Client ID (Web)
+5. Add your domain to Authorized JavaScript origins
+6. Add callback URL to Authorized redirect URIs:
+   - `https://yourdomain.com/auth/google-drive/callback`
 
 ### TinyURL API
 
@@ -161,6 +166,7 @@ Set the following environment variables in your deployment platform:
 
 - `VITE_GOOGLE_API_KEY`
 - `VITE_GOOGLE_CLIENT_ID`
+- `VITE_GOOGLE_CLIENT_SECRET`
 - `VITE_TINYURL_API_KEY`
 
 ## Browser Support

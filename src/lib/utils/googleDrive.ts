@@ -45,26 +45,7 @@ export class GoogleDriveService {
   }
   
   private async loadGis(): Promise<void> {
-    if (!browser) return;
-    if (this.gisLoaded) return;
-    await new Promise<void>((resolve, reject) => {
-      const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-      if (existing) {
-        existing.addEventListener('load', () => resolve());
-        // If already loaded, resolve immediately
-        if ((window as any).google?.accounts?.oauth2) {
-          resolve();
-        }
-      } else {
-        const script = document.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Failed to load Google Identity Services'));
-        document.head.appendChild(script);
-      }
-    });
+    // No-op: redirect flow does not require GIS script
     this.gisLoaded = true;
   }
   
@@ -72,37 +53,19 @@ export class GoogleDriveService {
     if (!browser) {
       throw new Error('Google Drive authentication is only available in the browser');
     }
-    await this.loadGis();
-    if (!this.tokenClient) {
-      this.tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-        client_id: this.clientId,
-        scope: this.scopes,
-        callback: (response: any) => {
-          // This is handled in the request promise below
-        }
-      });
-    }
-    if (!forceConsent && this.isTokenValid()) {
+    if (!forceConsent && this.isTokenValid()) return;
+    const resp = await fetch('/auth/google-drive/token', { method: 'POST' });
+    if (resp.status === 401) {
+      // Not authenticated; start redirect flow
+      window.location.href = '/auth/google-drive/start';
+      await new Promise(() => {}); // keep pending until navigation
       return;
     }
-    await new Promise<void>((resolve, reject) => {
-      try {
-        this.tokenClient!.callback = (resp: any) => {
-          if (resp?.access_token) {
-            // Note: GIS does not always return expires_in here; best-effort if present
-            this.setAccessToken(resp.access_token, resp.expires_in ?? 3600);
-            resolve();
-          } else if (resp?.error) {
-            reject(new Error(resp.error));
-          } else {
-            reject(new Error('Authentication failed'));
-          }
-        };
-        this.tokenClient!.requestAccessToken({ prompt: forceConsent ? 'consent' : '' });
-      } catch (e) {
-        reject(e);
-      }
-    });
+    if (!resp.ok) {
+      throw new Error('Failed to get access token');
+    }
+    const data = await resp.json();
+    this.setAccessToken(data.access_token, data.expires_in ?? 3600);
   }
   
   private async ensureAccessToken(): Promise<void> {
