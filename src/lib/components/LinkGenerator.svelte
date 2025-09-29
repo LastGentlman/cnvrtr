@@ -167,17 +167,5 @@
       {/if}
     </div>
     
-    <!-- Additional Options -->
-    <div class="mt-6 pt-6 border-t border-gray-200">
-      <p class="text-sm text-gray-500 mb-3">More options:</p>
-      <div class="flex space-x-2">
-        <button class="flex-1 btn-secondary text-sm">
-          Process Another Video
-        </button>
-        <button class="flex-1 btn-secondary text-sm">
-          View Processing History
-        </button>
-      </div>
-    </div>
   </div>
 </div>

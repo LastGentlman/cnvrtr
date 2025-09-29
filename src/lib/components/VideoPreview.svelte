@@ -148,12 +148,15 @@
             </div>
             {#if video.processingTime}
               <div class="flex justify-between items-center">
-                <span class="text-sm text-gray-600">Processing Time</span>
+                <span class="text-sm text-gray-600">Processing time:</span>
                 <span class="text-sm font-medium text-gray-900">
                   {#if (video.processingTime / 1000) >= 60}
                     {Math.floor((video.processingTime / 1000) / 60)}m
                   {:else}
                     {Math.round(video.processingTime / 1000)}s
+                  {/if}
+                  {#if video.compressionRatio}
+                    — {Math.round((1 - video.compressionRatio) * 100)}% smaller
                   {/if}
                 </span>
               </div>
