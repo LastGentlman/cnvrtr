@@ -150,7 +150,11 @@
               <div class="flex justify-between items-center">
                 <span class="text-sm text-gray-600">Processing Time</span>
                 <span class="text-sm font-medium text-gray-900">
-                  {Math.round(video.processingTime / 1000)}s
+                  {#if (video.processingTime / 1000) >= 60}
+                    {Math.floor((video.processingTime / 1000) / 60)}m
+                  {:else}
+                    {Math.round(video.processingTime / 1000)}s
+                  {/if}
                 </span>
               </div>
             {/if}

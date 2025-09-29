@@ -44,6 +44,7 @@ export class VideoProcessingService {
     
     this.isProcessing = true;
     const taskId = addToQueue(file);
+    const startTimeMs = Date.now();
     
     try {
       // Update status to processing
@@ -127,7 +128,7 @@ export class VideoProcessingService {
       }
       
       // Complete the task
-      const processingTime = Date.now(); // Would be calculated from start time
+      const processingTime = Date.now() - startTimeMs;
       
       // Processing completed successfully
       
