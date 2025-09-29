@@ -100,7 +100,11 @@
           <!-- Processing Time -->
           {#if task.processingTime}
             <div class="mt-3 text-xs text-gray-500">
-              Processing time: {Math.round(task.processingTime / 1000)}s
+              {#if (task.processingTime / 1000) >= 60}
+                Processing time: {Math.floor((task.processingTime / 1000) / 60)}m
+              {:else}
+                Processing time: {Math.round(task.processingTime / 1000)}s
+              {/if}
             </div>
           {/if}
           
