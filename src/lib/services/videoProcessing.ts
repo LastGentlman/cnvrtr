@@ -4,6 +4,14 @@ import { tinyUrlService } from '$lib/utils/tinyurl';
 import { addToQueue, updateTaskProgress, completeTask, type ProcessingTask } from '$lib/stores/video';
 import { generateId } from '$lib/utils/format';
 import { browser } from '$app/environment';
+import {
+  isFileSystemAccessSupported,
+  pickDirectory,
+  saveFileToDirectory,
+  readBackFile,
+  deleteSavedFile,
+  type SavedFileHandle
+} from '$lib/utils/fileSystem';
 
 export interface ProcessingOptions {
   quality: number; // 0.1 to 1.0
@@ -15,6 +23,7 @@ export interface ProcessingOptions {
 
 export class VideoProcessingService {
   private isProcessing = false;
+  private userDirectoryHandle: FileSystemDirectoryHandle | null = null;
   
   async processVideo(
     file: File,
@@ -40,6 +49,17 @@ export class VideoProcessingService {
       // Update status to processing
       updateTaskProgress(taskId, 0, 'processing');
       
+      // Optional: Pre-auth with Google to avoid redirect after heavy work
+      if (options.enableGoogleDrive) {
+        try {
+          await googleDriveService.authenticate();
+        } catch (err) {
+          // If this triggers a redirect, control never reaches here until after return
+          // If it fails without redirect, continue and allow upload step to retry
+          console.warn('Pre-auth with Google failed or pending redirect:', err);
+        }
+      }
+      
       // Step 1: Initialize FFmpeg and compress video (0-70% progress)
       updateTaskProgress(taskId, 5, 'processing');
       console.log('Initializing video processor...');
@@ -50,12 +70,28 @@ export class VideoProcessingService {
         updateTaskProgress(taskId, mappedProgress, 'processing');
       }, options.preferredFormat);
       
+      // Step 1.5: Save compressed file to user-selected folder (if supported)
+      let saved: SavedFileHandle | null = null;
+      if (isFileSystemAccessSupported()) {
+        try {
+          if (!this.userDirectoryHandle) {
+            this.userDirectoryHandle = await pickDirectory();
+          }
+          updateTaskProgress(taskId, 68, 'processing');
+          const suggestedName = compressedFile.name;
+          saved = await saveFileToDirectory(this.userDirectoryHandle, compressedFile, suggestedName);
+        } catch (err) {
+          console.warn('Saving to user-selected folder failed; proceeding without local save:', err);
+        }
+      }
+      
       // Step 2: Upload to Google Drive (70-90% progress)
       let driveFile = null;
       if (options.enableGoogleDrive) {
         updateTaskProgress(taskId, 70, 'processing');
         try {
-          driveFile = await this.uploadToGoogleDrive(compressedFile, options.folderId);
+          const fileForUpload = saved ? await readBackFile(saved.fileHandle) : compressedFile;
+          driveFile = await this.uploadToGoogleDrive(fileForUpload, options.folderId);
           updateTaskProgress(taskId, 90, 'processing');
         } catch (error) {
           console.warn('Google Drive upload failed:', error);
@@ -79,6 +115,15 @@ export class VideoProcessingService {
       } else if (driveFile) {
         shareUrl = driveFile.webViewLink;
         updateTaskProgress(taskId, 100, 'processing');
+      }
+      
+      // Step 4: Clean up local saved copy if upload succeeded and we created one
+      if (driveFile && saved && this.userDirectoryHandle) {
+        try {
+          await deleteSavedFile(this.userDirectoryHandle, saved.suggestedName);
+        } catch (err) {
+          console.warn('Failed to delete local saved file:', err);
+        }
       }
       
       // Complete the task
