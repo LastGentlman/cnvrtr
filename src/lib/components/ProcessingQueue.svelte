@@ -1,5 +1,22 @@
 <script lang="ts">
   import { processingQueue } from '$lib/stores/video';
+  import { tinyUrlService } from '$lib/utils/tinyurl';
+
+  async function copyShareLink(url: string) {
+    if (!url) return;
+    let toCopy = url;
+    try {
+      const isAlreadyShort = /tinyurl\.com\//i.test(url);
+      if (!isAlreadyShort) {
+        const { shortUrl } = await tinyUrlService.shortenUrl(url);
+        toCopy = shortUrl;
+      }
+    } catch (e) {
+      // Fallback to original URL on any error
+    } finally {
+      await navigator.clipboard.writeText(toCopy);
+    }
+  }
   import { formatFileSize } from '$lib/utils/format';
   
   function getStatusColor(status: string): string {
@@ -126,7 +143,7 @@
               {#if task.shareUrl}
                 <button
                   class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                  on:click={() => navigator.clipboard.writeText(task.shareUrl || '')}
+                  on:click={() => copyShareLink(task.shareUrl || '')}
                 >
                   <svg class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />

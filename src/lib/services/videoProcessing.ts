@@ -223,7 +223,8 @@ export class VideoProcessingService {
   
   private async generateShortLink(longUrl: string): Promise<any> {
     try {
-      return await tinyUrlService.shortenUrl(longUrl, 'compressed-video');
+      // Do not use a static alias to avoid collisions
+      return await tinyUrlService.shortenUrl(longUrl);
     } catch (error) {
       console.error('TinyURL link generation failed:', error);
       throw new Error('Failed to generate shortened link. Please try again.');
