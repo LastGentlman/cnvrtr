@@ -1,10 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import VideoUploader from '$lib/components/VideoUploader.svelte';
-  import ProcessingQueue from '$lib/components/ProcessingQueue.svelte';
   import VideoPreview from '$lib/components/VideoPreview.svelte';
   import LinkGenerator from '$lib/components/LinkGenerator.svelte';
-  import { processingQueue, currentVideo } from '$lib/stores/video';
+  import { currentVideo } from '$lib/stores/video';
   import { videoProcessingService } from '$lib/services/videoProcessing';
   import type { VideoFile } from '$lib/stores/video';
   import { browser } from '$app/environment';
@@ -19,7 +18,6 @@
   let isProcessing = false;
   let isDriveAuthorized = false;
   
-  $: hasProcessingTasks = $processingQueue.length > 0;
   $: hasCompletedVideo = $currentVideo && $currentVideo.status === 'completed';
   
   async function handleFileSelected(event: CustomEvent) {
@@ -175,12 +173,7 @@
       {/if}
     </div>
 
-    <!-- Processing Queue -->
-    {#if hasProcessingTasks}
-      <div class="mb-8">
-        <ProcessingQueue />
-      </div>
-    {/if}
+    
 
     <!-- Video Preview -->
     {#if showPreview && $currentVideo}
