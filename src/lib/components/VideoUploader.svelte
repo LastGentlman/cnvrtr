@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { appConfig } from '$lib/stores/video';
+  import { tinyUrlService } from '$lib/utils/tinyurl';
   import { processingQueue } from '$lib/stores/video';
   
   let copySucceeded = false;
@@ -22,6 +23,22 @@
       copySucceeded = true;
       setTimeout(() => { copySucceeded = false; }, 2000);
     } catch {}
+  }
+  
+  async function copyShareLink(url: string) {
+    if (!url) return;
+    let toCopy = url;
+    try {
+      const isAlreadyShort = /tinyurl\.com\//i.test(url);
+      if ($appConfig.enableTinyUrl && !isAlreadyShort) {
+        const { shortUrl } = await tinyUrlService.shortenUrl(url);
+        toCopy = shortUrl;
+      }
+    } catch (e) {
+      // Fallback to original URL on any error
+    } finally {
+      await copyText(toCopy);
+    }
   }
   
   function downloadFromUrl(url: string, suggestedName: string) {
@@ -256,7 +273,7 @@
           <button
             type="button"
             class="btn-primary"
-            on:click={() => latestTask.shareUrl && copyText(latestTask.shareUrl)}
+            on:click={() => latestTask.shareUrl && copyShareLink(latestTask.shareUrl)}
             disabled={!latestTask.shareUrl}
           >
             {#if copySucceeded}

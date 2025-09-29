@@ -19,38 +19,62 @@ export class TinyUrlService {
   
   async shortenUrl(longUrl: string, alias?: string): Promise<TinyUrlResponse> {
     try {
-      // TinyURL's simple API endpoint
+      // If API key is present, use TinyURL v2 API (supports CORS)
+      if (this.config.apiKey) {
+        const response = await fetch('https://api.tinyurl.com/create', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.config.apiKey}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Convertr/1.0'
+          },
+          body: JSON.stringify({
+            url: longUrl,
+            domain: 'tinyurl.com',
+            ...(alias ? { alias } : {})
+          })
+        });
+        
+        const data = await response.json().catch(() => ({} as any));
+        
+        if (!response.ok) {
+          const apiError = (data && (data.errors?.[0]?.message || data.message)) || response.statusText;
+          throw new Error(`TinyURL API error: ${apiError}`);
+        }
+        
+        const shortUrl: string | undefined = (data && (data.data?.tiny_url || data.tiny_url || data.shortUrl)) as string | undefined;
+        if (!shortUrl) {
+          throw new Error('TinyURL API returned no shortened URL');
+        }
+        
+        return {
+          shortUrl: shortUrl.trim(),
+          longUrl,
+          alias
+        };
+      }
+      
+      // Fallback: TinyURL simple endpoint (may not support CORS reliably)
       const url = new URL('https://tinyurl.com/api-create.php');
       url.searchParams.set('url', longUrl);
-      
-      if (alias) {
-        url.searchParams.set('alias', alias);
-      }
+      if (alias) url.searchParams.set('alias', alias);
       
       const response = await fetch(url.toString(), {
         method: 'GET',
-        headers: {
-          'User-Agent': 'Convertr/1.0',
-          ...(this.config.apiKey && { 'Authorization': `Bearer ${this.config.apiKey}` })
-        }
+        headers: { 'User-Agent': 'Convertr/1.0' }
       });
       
       if (!response.ok) {
         throw new Error(`TinyURL API error: ${response.statusText}`);
       }
       
-      const shortUrl = await response.text();
-      
-      // TinyURL returns just the shortened URL as plain text
-      if (!shortUrl || shortUrl.includes('Error') || shortUrl.includes('error')) {
-        throw new Error(`TinyURL API returned error: ${shortUrl}`);
+      const shortUrlText = await response.text();
+      if (!shortUrlText || shortUrlText.includes('Error') || shortUrlText.includes('error')) {
+        throw new Error(`TinyURL API returned error: ${shortUrlText}`);
       }
       
-      return {
-        shortUrl: shortUrl.trim(),
-        longUrl,
-        alias
-      };
+      return { shortUrl: shortUrlText.trim(), longUrl, alias };
     } catch (error) {
       console.error('TinyURL API error:', error);
       throw new Error(`Failed to shorten URL: ${error instanceof Error ? error.message : 'Unknown error'}`);

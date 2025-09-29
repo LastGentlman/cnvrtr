@@ -20,8 +20,8 @@
       if (video.shareUrl) {
         shareUrl = video.shareUrl;
       } else if (video.downloadUrl && /^https?:\/\//.test(video.downloadUrl)) {
-        // If there is a real, publicly accessible URL, shorten it via TinyURL
-        const { shortUrl } = await tinyUrlService.shortenUrl(video.downloadUrl, 'compressed-video');
+        // If there is a real, publicly accessible URL, shorten it via TinyURL (no static alias)
+        const { shortUrl } = await tinyUrlService.shortenUrl(video.downloadUrl);
         shareUrl = shortUrl;
         video.shareUrl = shortUrl;
       } else {
