@@ -8,6 +8,7 @@
   import { videoProcessingService } from '$lib/services/videoProcessing';
   import type { VideoFile } from '$lib/stores/video';
   import { browser } from '$app/environment';
+  import { googleDriveService } from '$lib/utils/googleDrive';
   
   // Declare props to avoid warnings
   export const data: any = undefined;
@@ -16,6 +17,7 @@
   let showPreview = false;
   let showLinkGenerator = false;
   let isProcessing = false;
+  let isDriveAuthorized = false;
   
   $: hasProcessingTasks = $processingQueue.length > 0;
   $: hasCompletedVideo = $currentVideo && $currentVideo.status === 'completed';
@@ -93,6 +95,31 @@
       isProcessing = false;
     }
   }
+
+  async function checkDriveAuth() {
+    if (!browser) return;
+    try {
+      const resp = await fetch('/auth/google-drive/token', { method: 'POST' });
+      if (resp.ok) {
+        const data = await resp.json();
+        googleDriveService.setAccessToken(data.access_token, data.expires_in ?? 3600);
+        isDriveAuthorized = true;
+      } else {
+        isDriveAuthorized = false;
+      }
+    } catch (e) {
+      isDriveAuthorized = false;
+    }
+  }
+
+  function startDriveAuth() {
+    if (!browser) return;
+    window.location.href = '/auth/google-drive/start';
+  }
+
+  onMount(() => {
+    checkDriveAuth();
+  });
 </script>
 
 <svelte:head>
@@ -120,10 +147,32 @@
   <div class="max-w-4xl mx-auto">
     <!-- Upload Section -->
     <div class="mb-8">
-      <VideoUploader 
-        on:fileSelected={handleFileSelected}
-        on:startProcessing={handleStartProcessing}
-      />
+      {#if isDriveAuthorized}
+        <VideoUploader 
+          on:fileSelected={handleFileSelected}
+          on:startProcessing={handleStartProcessing}
+        />
+      {:else}
+        <div class="card text-center">
+          <div class="space-y-4">
+            <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+              <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-2xl font-bold text-gray-900 mb-2">Conecta Google Drive</h2>
+              <p class="text-gray-600">Paso 1: Otorga permiso a Google Drive para subir y compartir tus videos. Luego se desbloqueará el cargador.</p>
+            </div>
+            <div>
+              <button type="button" class="btn-primary" on:click={startDriveAuth}>
+                Conectar Google Drive
+              </button>
+              <p class="text-xs text-gray-500 mt-2">Solicitamos el alcance mínimo necesario: drive.file (crear/gestionar archivos creados por esta app).</p>
+            </div>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- Processing Queue -->
