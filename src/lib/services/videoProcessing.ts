@@ -1,7 +1,7 @@
 import { videoProcessor } from '$lib/utils/ffmpeg';
 import { googleDriveService } from '$lib/utils/googleDrive';
 import { tinyUrlService } from '$lib/utils/tinyurl';
-import { addToQueue, updateTaskProgress, completeTask, type ProcessingTask } from '$lib/stores/video';
+import { addToQueue, updateTaskProgress, completeTask, failTask, type ProcessingTask } from '$lib/stores/video';
 import { generateId } from '$lib/utils/format';
 import { browser } from '$app/environment';
 import {
@@ -158,10 +158,7 @@ export class VideoProcessingService {
       updateTaskProgress(taskId, 0, 'error');
       
       // Processing failed
-      
-      completeTask(taskId, {
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-      });
+      failTask(taskId, error instanceof Error ? error.message : 'Unknown error occurred');
       throw error;
     } finally {
       this.isProcessing = false;
