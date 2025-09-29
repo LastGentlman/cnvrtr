@@ -3,6 +3,36 @@
   import { appConfig } from '$lib/stores/video';
   import { processingQueue } from '$lib/stores/video';
   
+  let copySucceeded = false;
+  
+  function formatDurationMs(ms: number | undefined): string {
+    if (!ms || ms <= 0) return '';
+    const seconds = Math.round(ms / 1000);
+    if (seconds >= 60) {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return secs ? `${mins}m ${secs}s` : `${mins}m`;
+    }
+    return `${seconds}s`;
+  }
+  
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copySucceeded = true;
+      setTimeout(() => { copySucceeded = false; }, 2000);
+    } catch {}
+  }
+  
+  function downloadFromUrl(url: string, suggestedName: string) {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = suggestedName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  
   function getStatusColor(status: string): string {
     switch (status) {
       case 'pending': return 'text-yellow-600 bg-yellow-100';
@@ -190,6 +220,65 @@
             style="width: {latestTask.progress}%"
           ></div>
         </div>
+      </div>
+    {:else if latestTask && latestTask.status === 'completed'}
+      <div class="mt-4 space-y-3">
+        <!-- Completed indicator -->
+        <div class="flex items-center justify-between p-2 rounded-md bg-green-50 border border-green-200">
+          <div class="flex items-center space-x-2">
+            <div class="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center">
+              <svg class="h-3.5 w-3.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <span class="text-sm font-medium text-green-700">Completado</span>
+          </div>
+          {#if latestTask.processingTime}
+            <span class="text-xs text-green-700">{formatDurationMs(latestTask.processingTime)}</span>
+          {/if}
+        </div>
+        
+        <!-- Action buttons -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            class="btn-secondary"
+            on:click={() => latestTask.downloadUrl && downloadFromUrl(latestTask.downloadUrl, 'compressed_' + (latestTask.file?.name || 'video.mp4'))}
+            disabled={!latestTask.downloadUrl}
+          >
+            <div class="flex items-center justify-center">
+              <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Descargar
+            </div>
+          </button>
+          <button
+            type="button"
+            class="btn-primary"
+            on:click={() => latestTask.shareUrl && copyText(latestTask.shareUrl)}
+            disabled={!latestTask.shareUrl}
+          >
+            {#if copySucceeded}
+              <div class="flex items-center justify-center">
+                <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                Copiado
+              </div>
+            {:else}
+              <div class="flex items-center justify-center">
+                <svg class="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Copiar enlace
+              </div>
+            {/if}
+          </button>
+        </div>
+        {#if !latestTask.shareUrl}
+          <p class="text-xs text-gray-500 text-center">No hay enlace público disponible. Conecta Google Drive para generar un link compartible.</p>
+        {/if}
       </div>
     {/if}
     
