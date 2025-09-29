@@ -1,6 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
   import { appConfig } from '$lib/stores/video';
+  import { googleDriveService } from '$lib/utils/googleDrive';
   
   const dispatch = createEventDispatcher();
   
@@ -8,6 +9,7 @@
   let fileInput: HTMLInputElement;
   let selectedFile: File | null = null;
   let errorMessage = '';
+  let driveAuthLoading = false;
   
   $: maxSize = $appConfig.maxFileSize;
   $: supportedFormats = $appConfig.supportedFormats;
@@ -86,12 +88,42 @@
       fileInput.value = '';
     }
   }
+
+  async function connectGoogleDrive() {
+    try {
+      driveAuthLoading = true;
+      await googleDriveService.authenticate(true);
+    } catch (err) {
+      console.error('Google Drive authentication failed', err);
+      alert('No se pudo conectar con Google Drive. Intenta de nuevo.');
+    } finally {
+      driveAuthLoading = false;
+    }
+  }
 </script>
 
 <div class="card">
   <div class="text-center">
     <h2 class="text-2xl font-bold text-gray-900 mb-2">Upload Your Video</h2>
     <p class="text-gray-600 mb-6">Drag and drop your video file or click to browse</p>
+
+    <!-- Google Drive Connect Button -->
+    <div class="mb-4">
+      <p class="text-sm text-gray-600 mb-2">Opcional: conecta tu Google Drive para guardar y compartir automáticamente.</p>
+      <button
+        type="button"
+        class="btn-secondary inline-flex items-center"
+        on:click|stopPropagation={connectGoogleDrive}
+        disabled={driveAuthLoading}
+      >
+        <svg class="h-4 w-4" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#0F9D58" d="M15.9 14L6 30l6 10 9.9-16z" />
+          <path fill="#FFCD40" d="M32.1 14H15.9L26 32h16z" />
+          <path fill="#4285F4" d="M42 32L32.1 14 26 24l9.9 16z" />
+        </svg>
+        <span class="ml-2">{driveAuthLoading ? 'Conectando…' : 'Conectar con Google Drive'}</span>
+      </button>
+    </div>
     
     <!-- Upload Area -->
     <div 
