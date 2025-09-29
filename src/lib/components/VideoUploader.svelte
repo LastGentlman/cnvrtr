@@ -152,9 +152,9 @@
           <button
             type="button"
             class="btn-secondary"
-            on:click|stopPropagation={() => { dispatch('cancel'); clearSelection(); openFileDialog(); }}
+            on:click|stopPropagation={() => { dispatch('cancel'); clearSelection(); }}
           >
-            Cancel & Choose Another
+            Cancelar
           </button>
         </div>
       {:else}
