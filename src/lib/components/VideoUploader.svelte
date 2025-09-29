@@ -45,6 +45,8 @@
     errorMessage = '';
     selectedFile = file;
     dispatch('fileSelected', { file });
+    // Auto-start processing upon valid selection to simplify UX
+    dispatch('startProcessing', { file });
   }
   
   function handleDrop(e: DragEvent) {
@@ -126,17 +128,10 @@
           </div>
           <button
             type="button"
-            class="btn-primary"
-            on:click|stopPropagation={() => dispatch('startProcessing', { file: selectedFile })}
+            class="btn-secondary"
+            on:click|stopPropagation={() => { clearSelection(); openFileDialog(); }}
           >
-            Start Processing
-          </button>
-          <button
-            type="button"
-            class="btn-secondary ml-2"
-            on:click|stopPropagation={clearSelection}
-          >
-            Choose Different File
+            Cancel & Choose Another
           </button>
         </div>
       {:else}

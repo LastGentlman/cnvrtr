@@ -1,5 +1,5 @@
 // Google Drive API integration
-import { browser } from '$app/environment';
+// Avoid SvelteKit-specific imports here for broader compatibility
 export interface DriveFile {
   id: string;
   name: string;
@@ -43,6 +43,11 @@ export class GoogleDriveService {
   private isTokenValid(): boolean {
     return !!this.accessToken && Date.now() < this.tokenExpiryMs;
   }
+
+  // Public check without triggering redirects
+  isAuthorized(): boolean {
+    return this.isTokenValid();
+  }
   
   private async loadGis(): Promise<void> {
     // No-op: redirect flow does not require GIS script
@@ -50,7 +55,8 @@ export class GoogleDriveService {
   }
   
   async authenticate(forceConsent: boolean = false): Promise<void> {
-    if (!browser) {
+    const isBrowser = typeof window !== 'undefined';
+    if (!isBrowser) {
       throw new Error('Google Drive authentication is only available in the browser');
     }
     if (!forceConsent && this.isTokenValid()) return;
