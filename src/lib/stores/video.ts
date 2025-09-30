@@ -79,6 +79,16 @@ export function completeTask(taskId: string, result: Partial<ProcessingTask>) {
   );
 }
 
+export function failTask(taskId: string, errorMessage?: string) {
+  processingQueue.update(queue => 
+    queue.map(task => 
+      task.id === taskId 
+        ? { ...task, status: 'error', ...(errorMessage ? { error: errorMessage } : {}) }
+        : task
+    )
+  );
+}
+
 export function removeTask(taskId: string) {
   processingQueue.update(queue => queue.filter(task => task.id !== taskId));
 }
