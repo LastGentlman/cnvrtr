@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import VideoUploader from '$lib/components/VideoUploader.svelte';
   import VideoPreview from '$lib/components/VideoPreview.svelte';
-  import LinkGenerator from '$lib/components/LinkGenerator.svelte';
   import { currentVideo } from '$lib/stores/video';
   import { videoProcessingService } from '$lib/services/videoProcessing';
   import type { VideoFile } from '$lib/stores/video';
@@ -14,7 +13,6 @@
   export const params: any = undefined;
   
   let showPreview = false;
-  let showLinkGenerator = false;
   let isProcessing = false;
   let isDriveAuthorized = false;
   
@@ -31,7 +29,6 @@
     } catch {}
     currentVideo.set(null);
     showPreview = false;
-    showLinkGenerator = false;
     isProcessing = false;
   }
 
@@ -78,7 +75,6 @@
       
       // Update video status
       currentVideo.update(v => v ? { ...v, status: 'completed', progress: 100 } : null);
-      showLinkGenerator = true;
       
     } catch (error) {
       console.error('Video processing failed:', error);
@@ -182,11 +178,5 @@
       </div>
     {/if}
 
-    <!-- Link Generator -->
-    {#if showLinkGenerator && $currentVideo}
-      <div class="mb-8">
-        <LinkGenerator video={$currentVideo} />
-      </div>
-    {/if}
   </div>
 </div>
