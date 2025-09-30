@@ -241,7 +241,7 @@
     {:else if latestTask && latestTask.status === 'completed'}
       <div class="mt-4 space-y-3">
         <!-- Completed indicator -->
-        <div class="flex items-center justify-between p-2 rounded-md bg-green-50 border border-green-200">
+        <div class="flex flex-col items-center p-2 rounded-md bg-green-50 border border-green-200 text-center">
           <div class="flex items-center space-x-2">
             <div class="h-5 w-5 rounded-full bg-green-100 flex items-center justify-center">
               <svg class="h-3.5 w-3.5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -250,7 +250,7 @@
             </div>
             <span class="text-sm font-medium text-green-700">Completado</span>
           </div>
-          <div class="text-xs text-green-700 flex items-center space-x-2">
+          <div class="text-xs text-green-700 flex items-center space-x-2 mt-1 justify-center">
             {#if latestTask.processingTime}
               <span><span class="font-medium">Processing time:</span> {formatDurationMs(latestTask.processingTime)}</span>
             {/if}
