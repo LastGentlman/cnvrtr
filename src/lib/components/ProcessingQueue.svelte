@@ -92,7 +92,7 @@
           </div>
           
           <!-- Progress Bar -->
-          {#if task.status === 'processing' || task.status === 'completed'}
+          {#if task.status === 'processing'}
             <div class="mb-3">
               <div class="flex justify-between text-xs text-gray-500 mb-1">
                 <span class="inline-flex items-center">
