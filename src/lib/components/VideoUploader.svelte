@@ -250,9 +250,14 @@
             </div>
             <span class="text-sm font-medium text-green-700">Completado</span>
           </div>
-          {#if latestTask.processingTime}
-            <span class="text-xs text-green-700">{formatDurationMs(latestTask.processingTime)}</span>
-          {/if}
+          <div class="text-xs text-green-700 flex items-center space-x-2">
+            {#if latestTask.processingTime}
+              <span><span class="font-medium">Processing time:</span> {formatDurationMs(latestTask.processingTime)}</span>
+            {/if}
+            {#if latestTask.compressedSize}
+              <span>· {Math.round((1 - latestTask.compressedSize / latestTask.originalSize) * 100)}% smaller</span>
+            {/if}
+          </div>
         </div>
         
         <!-- Action buttons -->
