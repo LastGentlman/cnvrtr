@@ -60,13 +60,14 @@
       };
       
       currentVideo.set(video);
-      showPreview = true;
+      // No mostramos el preview hasta finalizar
+      showPreview = false;
       
       // Start real video processing
       console.log('Starting video processing...');
       console.log('Note: First-time processing may take longer as FFmpeg loads...');
       
-      await videoProcessingService.processVideo(file, {
+      const task = await videoProcessingService.processVideo(file, {
         quality: 0.8,
         enableGoogleDrive: true,
         enableTinyUrl: true,
@@ -74,7 +75,18 @@
       });
       
       // Update video status
-      currentVideo.update(v => v ? { ...v, status: 'completed', progress: 100 } : null);
+      currentVideo.update(v => v ? { 
+        ...v, 
+        status: 'completed', 
+        progress: 100,
+        processedFile: undefined,
+        downloadUrl: task.downloadUrl,
+        shareUrl: task.shareUrl,
+        processingTime: task.processingTime,
+        compressedSize: task.compressedSize,
+        compressionRatio: task.compressedSize ? (task.compressedSize / v.size) : undefined
+      } : null);
+      showPreview = true;
       
     } catch (error) {
       console.error('Video processing failed:', error);

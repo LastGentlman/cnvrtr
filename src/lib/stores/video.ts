@@ -25,6 +25,7 @@ export interface VideoFile {
   error?: string;
   originalFile?: File;
   processedFile?: File;
+  compressedSize?: number;
   downloadUrl?: string;
   shareUrl?: string;
   processingTime?: number;
@@ -55,13 +56,13 @@ export function addToQueue(file: File): string {
     originalSize: file.size
   };
   
-  processingQueue.update(queue => [...queue, newTask]);
+  processingQueue.update((queue: ProcessingTask[]) => [...queue, newTask]);
   return taskId;
 }
 
 export function updateTaskProgress(taskId: string, progress: number, status?: ProcessingTask['status']) {
-  processingQueue.update(queue => 
-    queue.map(task => 
+  processingQueue.update((queue: ProcessingTask[]) => 
+    queue.map((task: ProcessingTask) => 
       task.id === taskId 
         ? { ...task, progress, ...(status && { status }) }
         : task
@@ -70,8 +71,8 @@ export function updateTaskProgress(taskId: string, progress: number, status?: Pr
 }
 
 export function completeTask(taskId: string, result: Partial<ProcessingTask>) {
-  processingQueue.update(queue => 
-    queue.map(task => 
+  processingQueue.update((queue: ProcessingTask[]) => 
+    queue.map((task: ProcessingTask) => 
       task.id === taskId 
         ? { ...task, ...result, status: 'completed', progress: 100 }
         : task
@@ -80,8 +81,8 @@ export function completeTask(taskId: string, result: Partial<ProcessingTask>) {
 }
 
 export function failTask(taskId: string, errorMessage?: string) {
-  processingQueue.update(queue => 
-    queue.map(task => 
+  processingQueue.update((queue: ProcessingTask[]) => 
+    queue.map((task: ProcessingTask) => 
       task.id === taskId 
         ? { ...task, status: 'error', ...(errorMessage ? { error: errorMessage } : {}) }
         : task
@@ -90,7 +91,7 @@ export function failTask(taskId: string, errorMessage?: string) {
 }
 
 export function removeTask(taskId: string) {
-  processingQueue.update(queue => queue.filter(task => task.id !== taskId));
+  processingQueue.update((queue: ProcessingTask[]) => queue.filter((task: ProcessingTask) => task.id !== taskId));
 }
 
 export function clearQueue() {
