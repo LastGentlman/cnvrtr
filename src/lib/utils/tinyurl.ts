@@ -19,6 +19,24 @@ export class TinyUrlService {
   
   async shortenUrl(longUrl: string, alias?: string): Promise<TinyUrlResponse> {
     try {
+      // Prefer server proxy to avoid CORS and keep API key private
+      try {
+        const proxyRes = await fetch('/api/shorten', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ url: longUrl, ...(alias ? { alias } : {}) })
+        });
+        const proxyData = await proxyRes.json().catch(() => ({} as any));
+        if (proxyRes.ok && proxyData?.shortUrl) {
+          return {
+            shortUrl: String(proxyData.shortUrl).trim(),
+            longUrl,
+            alias
+          };
+        }
+        // If proxy failed, fall through to direct calls
+      } catch {}
+
       // If API key is present, use TinyURL v2 API (supports CORS)
       if (this.config.apiKey) {
         const response = await fetch('https://api.tinyurl.com/create', {
@@ -26,8 +44,7 @@ export class TinyUrlService {
           headers: {
             'Authorization': `Bearer ${this.config.apiKey}`,
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'User-Agent': 'Convertr/1.0'
+            'Accept': 'application/json'
           },
           body: JSON.stringify({
             url: longUrl,
@@ -62,7 +79,7 @@ export class TinyUrlService {
       
       const response = await fetch(url.toString(), {
         method: 'GET',
-        headers: { 'User-Agent': 'Convertr/1.0' }
+        // No custom headers; browsers restrict certain headers like User-Agent
       });
       
       if (!response.ok) {
