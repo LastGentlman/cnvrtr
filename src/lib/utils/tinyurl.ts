@@ -19,82 +19,22 @@ export class TinyUrlService {
   
   async shortenUrl(longUrl: string, alias?: string): Promise<TinyUrlResponse> {
     try {
-      // Prefer server proxy to avoid CORS and keep API key private
-      try {
-        const proxyRes = await fetch('/api/shorten', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-          body: JSON.stringify({ url: longUrl, ...(alias ? { alias } : {}) })
-        });
-        const proxyData = await proxyRes.json().catch(() => ({} as any));
-        if (proxyRes.ok && proxyData?.shortUrl) {
-          return {
-            shortUrl: String(proxyData.shortUrl).trim(),
-            longUrl,
-            alias
-          };
-        }
-        // If proxy failed, fall through to direct calls
-      } catch {}
-
-      // If API key is present, use TinyURL v2 API (supports CORS)
-      if (this.config.apiKey) {
-        const response = await fetch('https://api.tinyurl.com/create', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${this.config.apiKey}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            url: longUrl,
-            domain: 'tinyurl.com',
-            ...(alias ? { alias } : {})
-          })
-        });
-        
-        const data = await response.json().catch(() => ({} as any));
-        
-        if (!response.ok) {
-          const apiError = (data && (data.errors?.[0]?.message || data.message)) || response.statusText;
-          throw new Error(`TinyURL API error: ${apiError}`);
-        }
-        
-        const shortUrl: string | undefined = (data && (data.data?.tiny_url || data.tiny_url || data.shortUrl)) as string | undefined;
-        if (!shortUrl) {
-          throw new Error('TinyURL API returned no shortened URL');
-        }
-        
-        return {
-          shortUrl: shortUrl.trim(),
-          longUrl,
-          alias
-        };
-      }
-      
-      // Fallback: TinyURL simple endpoint (may not support CORS reliably)
-      const url = new URL('https://tinyurl.com/api-create.php');
-      url.searchParams.set('url', longUrl);
-      if (alias) url.searchParams.set('alias', alias);
-      
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        // No custom headers; browsers restrict certain headers like User-Agent
+      // Always use server proxy to avoid CORS and keep API key private
+      const proxyRes = await fetch('/api/shorten', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ url: longUrl, ...(alias ? { alias } : {}) })
       });
-      
-      if (!response.ok) {
-        throw new Error(`TinyURL API error: ${response.statusText}`);
+      const proxyData = await proxyRes.json().catch(() => ({} as any));
+      const candidate = proxyData?.shortUrl ? String(proxyData.shortUrl).trim() : '';
+      if (proxyRes.ok && candidate) {
+        return { shortUrl: candidate, longUrl, alias };
       }
-      
-      const shortUrlText = await response.text();
-      if (!shortUrlText || shortUrlText.includes('Error') || shortUrlText.includes('error')) {
-        throw new Error(`TinyURL API returned error: ${shortUrlText}`);
-      }
-      
-      return { shortUrl: shortUrlText.trim(), longUrl, alias };
-    } catch (error) {
-      console.error('TinyURL API error:', error);
-      throw new Error(`Failed to shorten URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Graceful fallback to original URL on any proxy failure
+      return { shortUrl: longUrl, longUrl, alias };
+    } catch {
+      // Final safeguard: never throw for copy-link UX; just return original URL
+      return { shortUrl: longUrl, longUrl, alias };
     }
   }
   
