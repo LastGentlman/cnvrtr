@@ -62,28 +62,26 @@ export const POST = async (
     }
 
     // Fallback to the simple endpoint (works server-side without CORS)
-    const url = new URL('https://tinyurl.com/api-create.php');
-    url.searchParams.set('url', longUrl);
-    if (alias) url.searchParams.set('alias', alias);
+    try {
+      const url = new URL('https://tinyurl.com/api-create.php');
+      url.searchParams.set('url', longUrl);
+      if (alias) url.searchParams.set('alias', alias);
 
-    const res = await fetchFn(url.toString(), { method: 'GET' });
-    if (!res.ok) {
-      return new Response(JSON.stringify({ error: `TinyURL API error: ${res.statusText}` }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+      const res = await fetchFn(url.toString(), { method: 'GET' });
+      if (res.ok) {
+        const shortUrlText = (await res.text()).trim();
+        if (shortUrlText && !shortUrlText.toLowerCase().includes('error')) {
+          return new Response(
+            JSON.stringify({ shortUrl: shortUrlText, longUrl, alias }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    } catch {}
 
-    const shortUrlText = (await res.text()).trim();
-    if (!shortUrlText || shortUrlText.toLowerCase().includes('error')) {
-      return new Response(JSON.stringify({ error: `TinyURL API returned error: ${shortUrlText}` }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
+    // If all shortening attempts fail, return original URL gracefully
     return new Response(
-      JSON.stringify({ shortUrl: shortUrlText, longUrl, alias }),
+      JSON.stringify({ shortUrl: longUrl, longUrl, alias, warning: 'Shortening failed; returning original URL' }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (err) {
