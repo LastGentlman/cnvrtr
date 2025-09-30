@@ -43,7 +43,9 @@
           preload="metadata"
           on:loadedmetadata={onVideoLoaded}
         >
-          {#if video.originalFile}
+          {#if video.status === 'completed' && video.downloadUrl}
+            <source src={video.downloadUrl} />
+          {:else if video.originalFile}
             <source src={URL.createObjectURL(video.originalFile)} type={video.originalFile.type} />
           {/if}
           <track kind="captions" src="" label="No captions available" srclang="en" default />
@@ -134,10 +136,10 @@
               <span class="text-sm text-gray-600">Original Size</span>
               <span class="text-sm font-medium text-gray-900">{formatFileSize(video.size)}</span>
             </div>
-            {#if video.processedFile}
+            {#if video.compressedSize}
               <div class="flex justify-between items-center">
                 <span class="text-sm text-gray-600">Compressed Size</span>
-                <span class="text-sm font-medium text-gray-900">{formatFileSize(video.processedFile.size)}</span>
+                <span class="text-sm font-medium text-gray-900">{formatFileSize(video.compressedSize)}</span>
               </div>
             {/if}
             <div class="flex justify-between items-center">
