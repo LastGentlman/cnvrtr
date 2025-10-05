@@ -1,4 +1,5 @@
 import type { RequestHandler } from '@sveltejs/kit';
+import { dev } from '$app/environment';
 
 export const GET: RequestHandler = async ({ url, cookies }) => {
   const code = url.searchParams.get('code');
@@ -38,12 +39,12 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 
   const tokens = await tokenRes.json();
 
-  // Persist refresh token in httpOnly cookie (short domain demo; adjust security in prod)
+  // Persist refresh token in httpOnly cookie
   if (tokens.refresh_token) {
     cookies.set('gd_refresh_token', tokens.refresh_token, {
       httpOnly: true,
       sameSite: 'lax',
-      secure: true,
+      secure: !dev,
       path: '/',
       maxAge: 60 * 60 * 24 * 30 // 30 days
     });
