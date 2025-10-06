@@ -9,7 +9,7 @@ function base64UrlEncode(input: ArrayBuffer): string {
 
 async function generateCodeVerifierAndChallenge(): Promise<{ verifier: string; challenge: string }> {
   const random = crypto.getRandomValues(new Uint8Array(32));
-  const verifier = base64UrlEncode(random);
+  const verifier = base64UrlEncode(random.buffer);
   const encoder = new TextEncoder();
   const data = encoder.encode(verifier);
   const digest = await crypto.subtle.digest('SHA-256', data);
