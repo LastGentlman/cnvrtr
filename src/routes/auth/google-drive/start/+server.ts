@@ -39,6 +39,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
     scope,
     include_granted_scopes: 'true',
     access_type: 'offline',
+    // Force consent to ensure refresh_token is returned consistently
+    prompt: 'consent',
     state,
     code_challenge: challenge,
     code_challenge_method: 'S256'
